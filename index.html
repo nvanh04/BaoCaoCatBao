@@ -186,12 +186,24 @@ const badge=s=>`<span class="badge b-${s}">${defVal(STAT[s],s)}</span>`;
 const DAY_CUTOFF_HOUR=7, SHIFT_CUTOFF_HOUR=19;
 function defaults(){
   const dNow = new Date();
+  // Đổi sang giờ VN (UTC+7) và lấy giờ local an toàn
   const vnNow = new Date(dNow.getTime() + 7 * 3600 * 1000);
-  const d = new Date(vnNow), h = vnNow.getUTCHours();
-  if(h < DAY_CUTOFF_HOUR) d.setUTCDate(d.getUTCDate() - 1);
-  const sh=(S.config&&S.config.shifts)?S.config.shifts:[{code:'1N1',name:'Ca ngày'},{code:'2D1',name:'Ca đêm'}];
-  const isDayShift=(h>=DAY_CUTOFF_HOUR && h<SHIFT_CUTOFF_HOUR);
-  return {date:`${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`, shift:(isDayShift?sh[0]:sh[1]).code};
+  const h = vnNow.getUTCHours();
+  const d = new Date(vnNow);
+  if(h < DAY_CUTOFF_HOUR) {
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  const sh = (S.config && S.config.shifts) ? S.config.shifts : [{code:'1N1',name:'Ca ngày'},{code:'2D1',name:'Ca đêm'}];
+  const isDayShift = (h >= DAY_CUTOFF_HOUR && h < SHIFT_CUTOFF_HOUR);
+  
+  const year = d.getUTCFullYear();
+  const month = pad(d.getUTCMonth() + 1);
+  const day = pad(d.getUTCDate());
+  
+  return {
+    date: `${year}-${month}-${day}`, 
+    shift: (isDayShift ? sh[0] : sh[1]).code
+  };
 }
 
 const S={deviceId:'',token:'',me:null,config:null,view:'',rep:null,pid:0,step:1,lan:0,dirty:false,saving:false,headOpen:false,rollOpen:{},ro:false,list:[],f:null,tab:'pending'};
