@@ -771,21 +771,30 @@ document.addEventListener('change',e=>{const t=e.target;
   if(t.dataset&&t.dataset.p&&/\.so_cai$/.test(t.dataset.p)&&S.view==='edit'){const rh=t.closest('.roll')?.querySelector('.rh span:nth-of-type(1)');if(rh){const n=toInt(t.value);rh.textContent=n?fmtN(n)+' cái':'chưa nhập';}}
 });
 const ACT={
-  register:async()=>{
-  const name=defVal($('#wn').value,'').trim();
-  if(!name){toast('Vui lòng nhập họ tên','bad');return;}
-  const id=uid();
-  const machine=$('#wm').value;
+  register: async () => {
+  const name = defVal($('#wn').value, '').trim();
+  if (!name) { toast('Vui lòng nhập họ tên', 'bad'); return; }
+  const id = uid();
+  const machine = $('#wm').value;
+
+  // Sử dụng thử API, nếu lỗi hoặc không có server thì tự động dùng LocalDB
   try {
-    const ctrl=new AbortController();
-    const tm=setTimeout(()=>ctrl.abort(),2000);
-    await fetch('/api/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,machine}),signal:ctrl.signal});
+    const ctrl = new AbortController();
+    const tm = setTimeout(() => ctrl.abort(), 2000); // Timeout sau 2 giây để tránh treo
+    await fetch('/api/device', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id, name, machine}),
+      signal: ctrl.signal
+    });
     clearTimeout(tm);
-  } catch(e) {
-    LocalDB.handle('POST','/api/device',{id,name,machine});
+  } catch (e) {
+    // Fallback lưu trực tiếp vào LocalDB tích hợp sẵn trong code của bạn
+    LocalDB.handle('POST', '/api/device', {id, name, machine});
   }
-  S.deviceId=id;
-  localStorage.setItem('cb_dev',id);
+
+  S.deviceId = id;
+  localStorage.setItem('cb_dev', id);
   await boot();
 },
   stafflogin:()=>staffLoginModal(),
