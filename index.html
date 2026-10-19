@@ -156,7 +156,7 @@ table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const app=$('#app');
-const PIPE=String.fromCharCode(124);
+const PIPE='|';
 const defVal=(v,fb)=>(v!==undefined&&v!==null&&v!=='')?v:fb;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function uid(n=16){const a=new Uint8Array(n);if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else for(let i=0;i<n;i++)a[i]=Math.random()*256;return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');}
@@ -771,8 +771,20 @@ document.addEventListener('change',e=>{const t=e.target;
   if(t.dataset&&t.dataset.p&&/\.so_cai$/.test(t.dataset.p)&&S.view==='edit'){const rh=t.closest('.roll')?.querySelector('.rh span:nth-of-type(1)');if(rh){const n=toInt(t.value);rh.textContent=n?fmtN(n)+' cái':'chưa nhập';}}
 });
 const ACT={
-  register:async()=>{const name=$('#wn').value.trim();if(!name){toast('Vui lòng nhập họ tên','bad');return;}
-    const id=uid();await api('POST','/api/device',{id,name,machine:$('#wm').value});S.deviceId=id;localStorage.setItem('cb_dev',id);await boot();},
+  register:async()=>{
+    const name=defVal($('#wn').value,'').trim();
+    if(!name){toast('Vui lòng nhập họ tên','bad');return;}
+    const id=uid();
+    const machine=$('#wm').value;
+    try {
+      await api('POST','/api/device',{id,name,machine});
+    } catch(e) {
+      LocalDB.handle('POST','/api/device',{id,name,machine});
+    }
+    S.deviceId=id;
+    localStorage.setItem('cb_dev',id);
+    await boot();
+  },
   stafflogin:()=>staffLoginModal(),
   help:()=>helpModal(),
   newrep:()=>newRepModal(),
@@ -808,7 +820,7 @@ const ACT={
   allok:b=>{const l=prods()[S.pid].qc.lans[+b.dataset.i];OK_ITEMS.forEach(i=>{if(!l.v[i.k])l.v[i.k]='ok';});markDirty();renderEditor();toast('Đã chọn Đạt. Sửa dòng nào không đạt','ok');},
   dqhelp:()=>dqHelp(),
   rollok:async b=>{await api('POST',`/api/reports/${S.rep.id}/confirm`,{roll_id:b.dataset.id,value:+b.dataset.v===1});
-    const id=b.dataset.id,on=+b.dataset.v===1;prods().forEach(p=>p.rolls.forEach(r=>{if(r.id===id){r.ql_xn=on;r.ql_xn_by=on?S.me.name:'';}}));renderEditor();toast(on?'Đã xác nhận':'Đã bỏ xác nhận','ok');},
+    const id=b.dataset.id,on=+b.dataset.v===1;prods().forEach(p=>p.rolls.forEach(r=>{if(r.id===id){r.ql_xn=on;r.ql_xn_by=on?(S.me&&S.me.name)?S.me.name:'Quản lý':'';}}));renderEditor();toast(on?'Đã xác nhận':'Đã bỏ xác nhận','ok');},
   approve:async()=>{if(S.dirty)await save(false,true);if(!await ask('Duyệt phiếu?',`Xác nhận phiếu <b>Máy ${esc(S.rep.machine)} · ${esc(S.rep.shift)} · ${fd(S.rep.report_date)}</b> của ${esc(S.rep.worker_name)} là đúng?`,'Duyệt'))return;
     await api('POST',`/api/reports/${S.rep.id}/approve`);toast('Đã duyệt ✓','ok');staffHome();},
   return:async()=>{const note=await askText(S.rep.status==='approved'?'Mở lại phiếu để sửa':'Trả lại cho công nhân','Lý do / chỗ cần sửa','Trả lại','area');if(note===null)return;
