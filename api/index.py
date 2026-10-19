@@ -5,15 +5,18 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 # Trên Vercel, chỉ thư mục /tmp mới cho phép ghi file SQLite
 DB_PATH = os.environ.get("CATBAO_DB", "/tmp/catbao.db")
 SESSION_DAYS = 14
 VN_TZ = timezone(timedelta(hours=7))
+_INIT_LOCK = threading.Lock()
+_DB_READY = False
 
 DEFAULT_MACHINES = [str(i) for i in range(1, 11)]
 DEFAULT_SHIFTS = [
@@ -27,7 +30,6 @@ STATUS_VI = {
     "rejected": "Trả lại",
 }
 
-# Danh sách 24 mã hạng mục QC bắt buộc chọn Đạt / Không đạt / Không có ở Bước 4
 QC_REQUIRED_KEYS = (
     "sensor", "cu", "tmpe", "vk", "khxpe",
     "cuonpp", "kc_in", "xepbo", "candoi", "miengbao", "trongngoai",
@@ -35,8 +37,6 @@ QC_REQUIRED_KEYS = (
     "chithua", "duongmay", "gapday", "baogap", "kc_chi_day", "chieusoc", "tem", "hohep",
     "thesp",
 )
-
-_DB_INITIALIZED = False
 
 
 def now():
@@ -51,75 +51,79 @@ def hash_pw(pw, salt=None):
 
 
 def connect():
-    global _DB_INITIALIZED
-    need_init = not _DB_INITIALIZED or not os.path.exists(DB_PATH)
-    db = sqlite3.connect(DB_PATH, timeout=20)
+    db = sqlite3.connect(DB_PATH, timeout=10)
     db.row_factory = sqlite3.Row
-    db.execute("PRAGMA journal_mode=WAL")
-    db.execute("PRAGMA synchronous=NORMAL")
-    if need_init:
-        init_db(db)
-        _DB_INITIALIZED = True
     return db
 
 
-def init_db(db):
-    db.executescript("""
-    CREATE TABLE IF NOT EXISTS users(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      full_name TEXT NOT NULL DEFAULT '',
-      role TEXT NOT NULL,
-      salt TEXT NOT NULL,
-      pass_hash TEXT NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS sessions(
-      token TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      expires REAL NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS devices(
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      last_machine TEXT DEFAULT '',
-      created_at TEXT,
-      last_seen TEXT
-    );
-    CREATE TABLE IF NOT EXISTS reports(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      device_id TEXT NOT NULL,
-      machine TEXT NOT NULL,
-      report_date TEXT NOT NULL,
-      shift TEXT NOT NULL,
-      worker_name TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'draft',
-      data TEXT NOT NULL DEFAULT '{}',
-      manager_note TEXT DEFAULT '',
-      approved_by TEXT DEFAULT '',
-      approved_at TEXT DEFAULT '',
-      submitted_at TEXT DEFAULT '',
-      created_at TEXT,
-      updated_at TEXT
-    );
-    CREATE INDEX IF NOT EXISTS ix_rep_date ON reports(report_date, shift, machine);
-    CREATE TABLE IF NOT EXISTS settings(
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-    """)
-    if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
-        salt, h = hash_pw("admin123")
-        db.execute(
-            "INSERT INTO users(username,full_name,role,salt,pass_hash,created_at) VALUES(?,?,?,?,?,?)",
-            ("admin", "Admin tổng", "admin", salt, h, now()),
-        )
-    if not db.execute("SELECT 1 FROM settings WHERE key='machines'").fetchone():
-        db.execute("INSERT INTO settings VALUES('machines',?)", (json.dumps(DEFAULT_MACHINES),))
-    if not db.execute("SELECT 1 FROM settings WHERE key='shifts'").fetchone():
-        db.execute("INSERT INTO settings VALUES('shifts',?)", (json.dumps(DEFAULT_SHIFTS, ensure_ascii=False),))
-    db.commit()
+def init_db():
+    global _DB_READY
+    if _DB_READY and os.path.exists(DB_PATH):
+        return
+    with _INIT_LOCK:
+        if _DB_READY and os.path.exists(DB_PATH):
+            return
+        db = connect()
+        try:
+            db.executescript("""
+            CREATE TABLE IF NOT EXISTS users(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT UNIQUE NOT NULL,
+              full_name TEXT NOT NULL DEFAULT '',
+              role TEXT NOT NULL,
+              salt TEXT NOT NULL,
+              pass_hash TEXT NOT NULL,
+              active INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS sessions(
+              token TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              expires REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS devices(
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              last_machine TEXT DEFAULT '',
+              created_at TEXT,
+              last_seen TEXT
+            );
+            CREATE TABLE IF NOT EXISTS reports(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              device_id TEXT NOT NULL,
+              machine TEXT NOT NULL,
+              report_date TEXT NOT NULL,
+              shift TEXT NOT NULL,
+              worker_name TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'draft',
+              data TEXT NOT NULL DEFAULT '{}',
+              manager_note TEXT DEFAULT '',
+              approved_by TEXT DEFAULT '',
+              approved_at TEXT DEFAULT '',
+              submitted_at TEXT DEFAULT '',
+              created_at TEXT,
+              updated_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS ix_rep_date ON reports(report_date, shift, machine);
+            CREATE TABLE IF NOT EXISTS settings(
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL
+            );
+            """)
+            if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+                salt, h = hash_pw("admin123")
+                db.execute(
+                    "INSERT INTO users(username,full_name,role,salt,pass_hash,created_at) VALUES(?,?,?,?,?,?)",
+                    ("admin", "Admin tổng", "admin", salt, h, now()),
+                )
+            if not db.execute("SELECT 1 FROM settings WHERE key='machines'").fetchone():
+                db.execute("INSERT INTO settings VALUES('machines',?)", (json.dumps(DEFAULT_MACHINES),))
+            if not db.execute("SELECT 1 FROM settings WHERE key='shifts'").fetchone():
+                db.execute("INSERT INTO settings VALUES('shifts',?)", (json.dumps(DEFAULT_SHIFTS, ensure_ascii=False),))
+            db.commit()
+            _DB_READY = True
+        finally:
+            db.close()
 
 
 def get_setting(db, key, default):
@@ -140,9 +144,7 @@ class ApiError(Exception):
 
 
 def num(v, integer=False):
-    if v is None or v == "":
-        return None
-    if isinstance(v, bool):
+    if v is None or v == "" or isinstance(v, bool):
         return None
     if isinstance(v, (int, float)):
         return int(v) if integer else v
@@ -287,10 +289,6 @@ def need_worker(ident):
         raise ApiError(403, "Chức năng dành cho công nhân")
 
 
-# ============================================================================
-# API ROUTES
-# ============================================================================
-
 @route("GET", r"/api/config")
 def r_config(h, db, ident, m, q, body):
     return {
@@ -431,7 +429,6 @@ def r_report_create(h, db, ident, m, q, body):
     if not machine or not shift or not valid_date(d):
         raise ApiError(400, "Thông tin ngày/ca/máy không hợp lệ")
     dev = ident["device"]
-    # Kiểm tra trùng theo Máy + Ngày + Ca (để P1 và P2 vào chung 1 phiếu, không bị đúp)
     ex = db.execute(
         "SELECT id FROM reports WHERE machine=? AND report_date=? AND shift=?",
         (machine, d, shift),
@@ -452,8 +449,6 @@ def r_report_create(h, db, ident, m, q, body):
 
 @route("GET", r"/api/reports/(\d+)")
 def r_report_get(h, db, ident, m, q, body):
-    if not ident:
-        raise ApiError(401, "Chưa đăng nhập")
     r = db.execute("SELECT * FROM reports WHERE id=?", (int(m.group(1)),)).fetchone()
     if not r:
         raise ApiError(404, "Không tìm thấy phiếu")
@@ -469,8 +464,6 @@ def r_report_put(h, db, ident, m, q, body):
         raise ApiError(404, "Không tìm thấy phiếu")
 
     is_admin = ident["kind"] == "staff" and ident["user"]["role"] == "admin"
-    if ident["kind"] == "staff" and not is_admin:
-        raise ApiError(403, "Quản lý ca chỉ có quyền duyệt hoặc trả lại phiếu, không sửa trực tiếp")
     if ident["kind"] == "worker" and r["status"] == "approved":
         raise ApiError(403, "Phiếu đã duyệt, không sửa được")
 
@@ -482,7 +475,6 @@ def r_report_put(h, db, ident, m, q, body):
     if not valid_date(d):
         raise ApiError(400, "Ngày sản xuất không hợp lệ")
 
-    # Chống trùng phiếu khi đổi Ngày / Ca / Máy ở phần Header
     dup = db.execute(
         "SELECT id FROM reports WHERE machine=? AND report_date=? AND shift=? AND id<>?",
         (machine, d, shift, r["id"]),
@@ -593,7 +585,7 @@ def r_users(h, db, ident, m, q, body):
 def r_user_add(h, db, ident, m, q, body):
     need_staff(ident, True)
     un = str(body.get("username", "")).strip().lower()[:40]
-    pw = str(body.get("password", ""))
+    pw = str(body.get("password", "123456"))
     full_name = str(body.get("full_name", "")).strip()[:60] or un
     role = body.get("role") if body.get("role") in ("manager", "admin") else "manager"
     if not un:
@@ -686,15 +678,7 @@ def r_settings(h, db, ident, m, q, body):
     return {"ok": True}
 
 
-# ============================================================================
-# HTTP HANDLER
-# ============================================================================
-
 class handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        # Tắt log mặc định gây rác console nếu không cần thiết
-        pass
-
     def _json(self, code, obj):
         payload = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -712,14 +696,28 @@ class handler(BaseHTTPRequestHandler):
                 (auth[7:], time.time()),
             ).fetchone()
             return {"kind": "staff", "user": dict(row)} if row else None
-        dev = self.headers.get("X-Device-Id", "")
+        dev = self.headers.get("X-Device-Id", "").strip()[:64]
         if dev:
             row = db.execute("SELECT * FROM devices WHERE id=?", (dev,)).fetchone()
             if row:
                 return {"kind": "worker", "device": dict(row)}
+            # Tự động khôi phục thiết bị công nhân nếu thư mục /tmp trên Vercel vừa bị reset
+            dev_name = unquote(self.headers.get("X-Device-Name", "")).strip()[:60]
+            dev_machine = unquote(self.headers.get("X-Device-Machine", "")).strip()[:10]
+            if dev_name:
+                ts = now()
+                db.execute(
+                    "INSERT OR IGNORE INTO devices(id,name,last_machine,created_at,last_seen) VALUES(?,?,?,?,?)",
+                    (dev, dev_name, dev_machine, ts, ts),
+                )
+                db.commit()
+                row = db.execute("SELECT * FROM devices WHERE id=?", (dev,)).fetchone()
+                if row:
+                    return {"kind": "worker", "device": dict(row)}
         return None
 
     def _handle(self, method):
+        init_db()
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         db = connect()
