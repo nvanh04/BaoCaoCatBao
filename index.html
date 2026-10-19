@@ -170,7 +170,7 @@ function uid(n = 16) {
 }
 
 // ============================================================================
-// BỘ XỬ LÝ THỜI GIAN CHUẨN GIỜ VIỆT NAM (UTC+7) - ĐỒNG BỘ 100%
+// BỘ XỬ LÝ THỜI GIAN CHUẨN GIỜ VIỆT NAM (UTC+7)
 // ============================================================================
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 
@@ -203,11 +203,9 @@ const ymd = (d = new Date()) => {
   return `${p.y}-${p.m}-${p.d}`;
 };
 
-// Chuyển đổi chuỗi thời gian từ Server (nếu Server lưu UTC) sang giờ VN để hiển thị
 function toVNDisplay(dtStr) {
   const s = String(defVal(dtStr, '')).trim();
   if (!s) return { date: '', time: '', full: '' };
-  // Nếu là chuỗi ISO có Z hoặc offset
   if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) {
     const dt = new Date(s);
     if (!isNaN(dt)) {
@@ -231,15 +229,11 @@ const fmtTimeSAP = s => {
   return /^\d{2}:\d{2}$/.test(v) ? v + ':00' : v;
 };
 
-// ============================================================================
-// HÀM XỬ LÝ SỐ HỌC & ĐỊNH DẠNG
-// ============================================================================
 const toInt = v => {
   const s = String(v ?? '').trim().replace(/[.,\s]/g, '');
   return (s && /^\d+$/.test(s)) ? parseInt(s, 10) : 0;
 };
 
-// Dùng khi xuất Excel: Ô trống giữ nguyên là '' thay vì ép về 0, nếu nhập '0' vẫn ra số 0
 const toIntOpt = v => {
   const s = String(v ?? '').trim().replace(/[.,\s]/g, '');
   return (s && /^\d+$/.test(s)) ? parseInt(s, 10) : '';
@@ -289,7 +283,7 @@ const LocalDB = {
     catch (e) { return def; }
   },
   set(k, v) { localStorage.setItem('cb_db_' + k, JSON.stringify(v)); },
-  handle(method, url, body) {
+  handle(method, url, body = {}) {
     const u = new URL(url, location.origin), p = u.pathname, q = Object.fromEntries(u.searchParams);
     const settings = this.get('settings', {
       machines: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
@@ -354,7 +348,7 @@ const LocalDB = {
       const ex = reports.find(r => r.machine === body.machine && r.report_date === body.report_date && r.shift === body.shift);
       if (ex) return { id: ex.id, existing: true };
       const id = reports.length ? Math.max(...reports.map(x => x.id)) + 1 : 1;
-      const dev = devices[S.deviceId] ? devices[S.deviceId] : { name: 'Công nhân' };
+      const dev = devices[S.deviceId] ? devices[S.deviceId] : { name: localStorage.getItem('cb_dev_name') || 'Công nhân' };
       const nr = {
         id, device_id: S.deviceId, machine: body.machine, report_date: body.report_date, shift: body.shift,
         worker_name: dev.name, status: 'draft', data: { products: [] }, manager_note: '',
@@ -484,15 +478,23 @@ const LocalDB = {
 
 async function api(method, url, body, raw) {
   const h = { 'Content-Type': 'application/json' };
-  if (S.token) h.Authorization = 'Bearer ' + S.token;
-  else if (S.deviceId) h['X-Device-Id'] = S.deviceId;
+  if (S.token) {
+    h.Authorization = 'Bearer ' + S.token;
+  } else if (S.deviceId) {
+    h['X-Device-Id'] = S.deviceId;
+    const savedDev = (LocalDB.get('devices', {})[S.deviceId]) || {};
+    const dName = localStorage.getItem('cb_dev_name') || savedDev.name || '';
+    const dMach = localStorage.getItem('cb_dev_machine') || savedDev.last_machine || '';
+    if (dName) h['X-Device-Name'] = encodeURIComponent(dName);
+    if (dMach) h['X-Device-Machine'] = encodeURIComponent(dMach);
+  }
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 3500);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const r = await fetch(url, { method, headers: h, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal });
     clearTimeout(timer);
     const ct = defVal(r.headers.get('content-type'), '');
-    if (r.status === 404 || (!raw && !ct.includes('application/json'))) {
+    if (!raw && !ct.includes('application/json')) {
       return LocalDB.handle(method, url, body);
     }
     if (raw) {
@@ -508,7 +510,7 @@ async function api(method, url, body, raw) {
     }
     return j;
   } catch (e) {
-    if (e.data || String(e.message).includes('Sai tên') || String(e.message).includes('Mật khẩu') || String(e.message).includes('Đã tồn tại')) throw e;
+    if (e.data || String(e.message).includes('Sai tên') || String(e.message).includes('Mật khẩu') || String(e.message).includes('Đã tồn tại') || String(e.message).includes('Không tìm thấy')) throw e;
     return LocalDB.handle(method, url, body);
   }
 }
@@ -635,8 +637,7 @@ async function boot() {
     S.config = await api('GET', '/api/config');
     let me = await api('GET', '/api/me');
     if (me.kind === 'none' && S.token) {
-      S.token = '';
-      localStorage.removeItem('cb_tok');
+      staffLogoutLocal();
       me = await api('GET', '/api/me');
     }
     S.me = me;
@@ -644,8 +645,12 @@ async function boot() {
     app.innerHTML = `<div class="center"><div class="card"><h2>Chưa kết nối được</h2><p>${esc(e.message)}</p><button class="btn pri lg" onclick="boot()">Thử lại</button></div></div>`;
     return;
   }
-  if (S.me.kind === 'staff') { S.f = defFilters(); S.tab = 'pending'; return staffHome(); }
-  if (S.me.kind === 'worker') return workerHome();
+  if (S.me.kind === 'staff') { S.f = defFilters(); S.tab = 'pending'; return staffHome(true); }
+  if (S.me.kind === 'worker') {
+    localStorage.setItem('cb_dev_name', S.me.name || '');
+    localStorage.setItem('cb_dev_machine', S.me.last_machine || '');
+    return workerHome();
+  }
   welcome();
 }
 function staffLogoutLocal() { S.token = ''; localStorage.removeItem('cb_tok'); }
@@ -714,7 +719,7 @@ function newRepModal() {
   $('#ngo', m).onclick = async () => {
     try {
       const code = $('#ns button.on', m).dataset.code;
-      const r = await api('POST', '/api/reports', { machine: $('#nm', m).value, report_date: $('#nd', m).value, shift: code, created_at: nowStr() });
+      const r = await api('POST', '/api/reports', { machine: $('#nm', m).value, report_date: $('#nd', m).value, shift: code });
       m.remove();
       if (r.existing) toast('Đã có phiếu cho ngày/ca/máy này – mở lại phiếu cũ');
       openReport(r.id);
@@ -763,7 +768,7 @@ const newProduct = () => ({
 
 function ensureShape(p) {
   const n = newProduct();
-  for (const k in n) { if (p[k] === undefined) p[k] = n[k]; }
+  for (const k in n) { if (p[k] === undefined || p[k] === null) p[k] = n[k]; }
   p.qc = defVal(p.qc, n.qc);
   p.qc.yc = Object.assign({}, n.qc.yc, defVal(p.qc.yc, {}));
   p.qc.dq = Object.assign({}, n.qc.dq, defVal(p.qc.dq, {}));
@@ -850,7 +855,7 @@ async function openReport(id) {
     S.rep.data.products = defVal(S.rep.data.products, []);
     S.ro = !(isWorker() ? r.status !== 'approved' : isAdmin());
     if (!S.ro && !S.rep.data.products.length) S.rep.data.products.push(newProduct());
-    S.rep.data.products.forEach((p, idx) => {
+    S.rep.data.products.forEach(p => {
       ensureShape(p);
       const rollSum = p.rolls.reduce((a, ro) => a + toInt(ro.so_cai), 0);
       if (rollSum > 0) p.tong_cai = String(rollSum);
@@ -872,6 +877,8 @@ function setPath(o, p, v) {
 }
 
 let saveTimer = null;
+let activeSavePromise = null;
+
 function markDirty() {
   if (S.ro) return;
   S.dirty = true;
@@ -895,55 +902,65 @@ function setSaveText(msg) {
 
 async function save(submit = false, silent = false) {
   if (S.ro || !S.rep) return false;
-  if (S.saving) { S.again = true; return false; }
+  if (activeSavePromise) {
+    if (!submit && silent) { S.again = true; return false; }
+    try { await activeSavePromise; } catch (e) {}
+  }
   S.saving = true;
   clearTimeout(saveTimer);
   setSaveText('Đang lưu…');
-  try {
-    const snap = JSON.stringify(S.rep.data);
-    const vnTimestamp = nowStr();
-    const vnClock = nowHM();
-    const r = await api('PUT', '/api/reports/' + S.rep.id, {
-      machine: S.rep.machine,
-      report_date: S.rep.report_date,
-      shift: S.rep.shift,
-      worker_name: S.rep.worker_name,
-      data: S.rep.data,
-      submit,
-      updated_at: vnTimestamp,
-      saved_at: vnClock
-    });
-    S.rep.status = r.status;
-    // Luôn lấy giờ chuẩn Việt Nam (UTC+7) hiển thị trạng thái lưu
-    S.savedAt = vnClock;
-    if (submit || JSON.stringify(S.rep.data) === snap) {
-      S.dirty = false;
-      localStorage.removeItem('bk_' + S.rep.id);
+
+  const runSave = async () => {
+    try {
+      const snap = JSON.stringify(S.rep.data);
+      const vnClock = nowHM();
+      const r = await api('PUT', '/api/reports/' + S.rep.id, {
+        machine: S.rep.machine,
+        report_date: S.rep.report_date,
+        shift: S.rep.shift,
+        worker_name: S.rep.worker_name,
+        data: S.rep.data,
+        submit
+      });
+      S.rep.status = r.status;
+      S.savedAt = vnClock;
+      if (submit || JSON.stringify(S.rep.data) === snap) {
+        S.dirty = false;
+        localStorage.removeItem('bk_' + S.rep.id);
+      }
+      setSaveText();
+      if (!silent) toast(submit ? 'Đã gửi quản lý duyệt ✓' : `Đã lưu lúc ${vnClock} ✓`, 'ok');
+      return true;
+    } catch (e) {
+      setSaveText('Chưa lưu được');
+      if (e.data && e.data.errors) {
+        modal(`<h3>Chưa gửi được</h3><p>${esc(e.message)}:</p><ul>${e.data.errors.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
+      } else if (!silent) {
+        toast(e.message, 'bad');
+      }
+      return false;
+    } finally {
+      S.saving = false;
+      activeSavePromise = null;
+      if (S.again) {
+        S.again = false;
+        if (S.dirty) save(false, true);
+      }
     }
-    setSaveText();
-    if (!silent) toast(submit ? 'Đã gửi quản lý duyệt ✓' : `Đã lưu lúc ${vnClock} ✓`, 'ok');
-    return true;
-  } catch (e) {
-    setSaveText('Chưa lưu được');
-    if (e.data && e.data.errors) {
-      modal(`<h3>Chưa gửi được</h3><p>${esc(e.message)}:</p><ul>${e.data.errors.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
-    } else if (!silent) {
-      toast(e.message, 'bad');
-    }
-    return false;
-  } finally {
-    S.saving = false;
-    if (S.again) { S.again = false; if (S.dirty) save(false, true); }
-  }
+  };
+
+  activeSavePromise = runSave();
+  return activeSavePromise;
 }
 
 function clientErrors() {
   const e = [];
   if (!prods().length) e.push('Chưa có sản phẩm nào.');
   prods().forEach((p, i) => {
-    const pre = `Sản phẩm ${i + 1}${p.ma_sp ? ' (' + p.ma_sp + ')' : ''}: `;
-    if (!p.ma_dh.trim()) e.push(pre + 'thiếu Mã đơn hàng (bước ①)');
-    if (!p.ma_sp.trim()) e.push(pre + 'thiếu Mã sản phẩm (bước ①)');
+    const sp = String(p.ma_sp ?? '').trim();
+    const pre = `Sản phẩm ${i + 1}${sp ? ' (' + sp + ')' : ''}: `;
+    if (!String(p.ma_dh ?? '').trim()) e.push(pre + 'thiếu Mã đơn hàng (bước ①)');
+    if (!sp) e.push(pre + 'thiếu Mã sản phẩm (bước ①)');
     if (!p.bat_dau) e.push(pre + 'thiếu giờ bắt đầu (bước ①)');
     if (!p.ket_thuc) e.push(pre + 'thiếu giờ kết thúc (bước ①)');
     if (!toInt(p.tong_cai)) e.push(pre + 'chưa có số cái cắt được (bước ① hoặc ②)');
@@ -997,7 +1014,7 @@ function TOG(path, label) {
 
 function pStat(p) {
   return {
-    1: !!(p.ma_dh.trim() && p.ma_sp.trim() && p.bat_dau && p.ket_thuc && toInt(p.tong_cai)),
+    1: !!(String(p.ma_dh ?? '').trim() && String(p.ma_sp ?? '').trim() && p.bat_dau && p.ket_thuc && toInt(p.tong_cai)),
     2: p.rolls.some(r => toInt(r.so_cai) > 0),
     3: !!String(p.toc_do_cat ?? '').trim(),
     4: p.qc.lans.every(lanDone)
@@ -1272,16 +1289,14 @@ const ACT = {
   register: async () => {
     const name = defVal($('#wn').value, '').trim();
     if (!name) { toast('Vui lòng nhập họ tên', 'bad'); return; }
-    const id = uid();
+    const id = S.deviceId || uid();
     const machine = $('#wm').value;
-    LocalDB.handle('POST', '/api/device', { id, name, machine });
     S.deviceId = id;
     localStorage.setItem('cb_dev', id);
-    fetch('/api/device', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name, machine })
-    }).catch(() => {});
+    localStorage.setItem('cb_dev_name', name);
+    localStorage.setItem('cb_dev_machine', machine);
+    LocalDB.handle('POST', '/api/device', { id, name, machine });
+    await api('POST', '/api/device', { id, name, machine });
     await boot();
   },
   stafflogin: () => staffLoginModal(),
@@ -1298,8 +1313,12 @@ const ACT = {
     $('#ego', m).onclick = async () => {
       try {
         const name = $('#en', m).value.trim();
+        const machine = $('#em', m).value;
         if (!name) { toast('Họ tên không được để trống', 'bad'); return; }
-        await api('PUT', '/api/device', { name, machine: $('#em', m).value });
+        localStorage.setItem('cb_dev_name', name);
+        localStorage.setItem('cb_dev_machine', machine);
+        LocalDB.handle('PUT', '/api/device', { name, machine });
+        await api('PUT', '/api/device', { name, machine });
         m.remove();
         await boot();
       } catch (e) { toast(e.message, 'bad'); }
@@ -1425,7 +1444,7 @@ const ACT = {
   approve: async () => {
     if (S.dirty) await save(false, true);
     if (!await ask('Duyệt phiếu?', `Xác nhận phiếu <b>Máy ${esc(S.rep.machine)} · ${esc(S.rep.shift)} · ${fd(S.rep.report_date)}</b> của ${esc(S.rep.worker_name)} là đúng?`, 'Duyệt')) return;
-    await api('POST', `/api/reports/${S.rep.id}/approve`, { approved_at: nowStr() });
+    await api('POST', `/api/reports/${S.rep.id}/approve`);
     localStorage.removeItem('bk_' + S.rep.id);
     toast('Đã duyệt ✓', 'ok');
     staffHome();
@@ -1433,7 +1452,7 @@ const ACT = {
   return: async () => {
     const note = await askText(S.rep.status === 'approved' ? 'Mở lại phiếu để sửa' : 'Trả lại cho công nhân', 'Lý do / chỗ cần sửa', 'Trả lại', 'area');
     if (note === null) return;
-    await api('POST', `/api/reports/${S.rep.id}/return`, { note, updated_at: nowStr() });
+    await api('POST', `/api/reports/${S.rep.id}/return`, { note });
     toast('Đã trả lại phiếu', 'ok');
     staffHome();
   },
@@ -1518,10 +1537,22 @@ function staffShell(inner, tab) {
   <div class="wrap wide"><div class="nav">${tabs.map(([t, l]) => `<button class="${tab === t ? 'on' : ''}" data-act="tab" data-t="${t}">${l}</button>`).join('')}<button data-act="refresh">↻</button></div>${inner}</div>`;
 }
 
-async function staffHome() {
+async function staffHome(skipMeCheck = false) {
   S.view = 'staff'; S.rep = null; clearTimeout(window._rf);
-  try { S.me = Object.assign(await api('GET', '/api/me')); } catch (e) {}
-  if (S.me.kind !== 'staff') return boot();
+  if (!skipMeCheck) {
+    try {
+      const me = await api('GET', '/api/me');
+      if (me && me.kind === 'staff') S.me = me;
+      else if (me && me.kind === 'none') {
+        staffLogoutLocal();
+        return boot();
+      }
+    } catch (e) {}
+  }
+  if (!S.me || S.me.kind !== 'staff') {
+    staffLogoutLocal();
+    return boot();
+  }
   const t = S.tab;
   if (t === 'export' && isAdmin()) return exportView();
   if (t === 'users' && isAdmin()) return usersView();
