@@ -156,36 +156,34 @@ table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const app=$('#app');
+const PIPE=String.fromCharCode(124);
+const defVal=(v,fb)=>(v!==undefined&&v!==null&&v!=='')?v:fb;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function uid(n=16){const a=new Uint8Array(n);if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else for(let i=0;i<n;i++)a[i]=Math.random()*256;return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');}
 const pad=n=>String(n).padStart(2,'0');
 const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const fd=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]}`:(s||'')};
-const nowHM=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())};
-const fmtTimeSAP=s=>{const v=String(s||'').trim();if(!v)return '';return /^\d{2}:\d{2}$/.test(v)?v+':00':v;};
-const toInt=v=>{const s=String(v??'').replace(/[.,\s]/g,'');return s&&/^\d+$/.test(s)?parseInt(s,10):0};
+const fd=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(defVal(s,''));return m?`${m[3]}/${m[2]}/${m[1]}`:defVal(s,'');};
+const nowHM=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());};
+const fmtTimeSAP=s=>{const v=String(defVal(s,'')).trim();if(!v)return '';return /^\d{2}:\d{2}$/.test(v)?v+':00':v;};
+const toInt=v=>{const s=String(v??'').replace(/[.,\s]/g,'');return s&&/^\d+$/.test(s)?parseInt(s,10):0;};
 const toNum=v=>{if(v===null||v===undefined||v==='')return null;const s=String(v).trim().replace(/\s+/g,'').replace(',','.');const f=Number(s);return isNaN(f)?null:f;};
-const fmtN=n=>Number(n||0).toLocaleString('vi-VN');
+const fmtN=n=>Number(defVal(n,0)).toLocaleString('vi-VN');
 const STAT={draft:'Đang điền',submitted:'Chờ duyệt',approved:'Đã duyệt',rejected:'Trả lại'};
-const badge=s=>`<span class="badge b-${s}">${STAT[s]||s}</span>`;
+const badge=s=>`<span class="badge b-${s}">${defVal(STAT[s],s)}</span>`;
 
-/* ---------- ĐÃ SỬA LỖI CA ĐÊM (00:00 - 06:59) ----------
-   Từ 07:00 đến trước 19:00 -> Ca ngày (1N1).
-   Từ 19:00 tối đến 06:59 sáng hôm sau -> Ca đêm (2D1) và nếu < 7h sáng thì tự lùi 1 ngày. */
 const DAY_CUTOFF_HOUR=7, SHIFT_CUTOFF_HOUR=19;
 function defaults(){
   const n=new Date(), d=new Date(n), h=n.getHours();
   if(h<DAY_CUTOFF_HOUR) d.setDate(d.getDate()-1);
-  const sh=S.config?.shifts||[{code:'1N1',name:'Ca ngày'},{code:'2D1',name:'Ca đêm'}];
+  const sh=(S.config&&S.config.shifts)?S.config.shifts:[{code:'1N1',name:'Ca ngày'},{code:'2D1',name:'Ca đêm'}];
   const isDayShift=(h>=DAY_CUTOFF_HOUR && h<SHIFT_CUTOFF_HOUR);
   return {date:ymd(d), shift:(isDayShift?sh[0]:sh[1]).code};
 }
 
 const S={deviceId:'',token:'',me:null,config:null,view:'',rep:null,pid:0,step:1,lan:0,dirty:false,saving:false,headOpen:false,rollOpen:{},ro:false,list:[],f:null,tab:'pending'};
 
-/* ---------- BỘ LƯU TRỮ DỰ PHÒNG TRÊN TRÌNH DUYỆT (NẾU CHƯA GẮN DB SERVER) ---------- */
 const LocalDB={
-  get(k,def){try{return JSON.parse(localStorage.getItem('cb_db_'+k))||def;}catch(e){return def;}},
+  get(k,def){try{const v=JSON.parse(localStorage.getItem('cb_db_'+k));return v?v:def;}catch(e){return def;}},
   set(k,v){localStorage.setItem('cb_db_'+k,JSON.stringify(v));},
   handle(method,url,body){
     const u=new URL(url,location.origin), p=u.pathname, q=Object.fromEntries(u.searchParams);
@@ -204,7 +202,7 @@ const LocalDB={
       }
       if(S.deviceId&&devices[S.deviceId]){
         const d=devices[S.deviceId];
-        return {kind:'worker',name:d.name,last_machine:d.last_machine||''};
+        return {kind:'worker',name:d.name,last_machine:defVal(d.last_machine,'')};
       }
       return {kind:'none'};
     }
@@ -217,22 +215,21 @@ const LocalDB={
       return {ok:true};
     }
     if(p==='/api/login'){
-      const u=users.find(x=>x.username===String(body.username||'').trim().toLowerCase()&&x.pw===body.password&&x.active);
+      const u=users.find(x=>x.username===String(defVal(body.username,'')).trim().toLowerCase()&&x.pw===body.password&&x.active);
       if(!u)throw new Error('Sai tên đăng nhập hoặc mật khẩu (Mặc định: admin / admin123)');
       return {token:'tok_'+u.id};
     }
     if(p==='/api/logout')return {ok:true};
     if(p==='/api/reports'&&method==='GET'){
       let list=[...reports];
-      if(!S.token&&S.deviceId)list=list.filter(r=>r.device_id===S.deviceId||r.shared);
       if(q.machine)list=list.filter(r=>r.machine===q.machine);
       if(q.shift)list=list.filter(r=>r.shift===q.shift);
       if(q.status&&q.status!=='all')list=list.filter(r=>r.status===q.status);
       if(q.from)list=list.filter(r=>r.report_date>=q.from);
       if(q.to)list=list.filter(r=>r.report_date<=q.to);
-      list.sort((a,b)=>b.report_date.localeCompare(a.report_date)||b.id-a.id);
+      list.sort((a,b)=>b.report_date.localeCompare(a.report_date)||(b.id-a.id));
       return {reports:list.map(r=>{
-        const prods=(r.data&&r.data.products)||[];
+        const prods=(r.data&&r.data.products)?r.data.products:[];
         const total=prods.reduce((s,pr)=>s+(toInt(pr.tong_cai)||pr.rolls.reduce((a,ro)=>a+toInt(ro.so_cai),0)),0);
         return {...r,n_products:prods.length,total,status_vi:STAT[r.status]};
       })};
@@ -241,7 +238,7 @@ const LocalDB={
       let ex=reports.find(r=>r.machine===body.machine&&r.report_date===body.report_date&&r.shift===body.shift);
       if(ex)return {id:ex.id,existing:true};
       const id=reports.length?Math.max(...reports.map(x=>x.id))+1:1;
-      const dev=devices[S.deviceId]||{name:'Công nhân'};
+      const dev=devices[S.deviceId]?devices[S.deviceId]:{name:'Công nhân'};
       const nr={id,device_id:S.deviceId,machine:body.machine,report_date:body.report_date,shift:body.shift,worker_name:dev.name,status:'draft',data:{products:[]},manager_note:'',approved_by:'',approved_at:'',submitted_at:'',created_at:nowStr(),updated_at:nowStr(),shared:true};
       reports.push(nr);this.set('reports',reports);
       return {id,existing:false};
@@ -252,22 +249,22 @@ const LocalDB={
       if(idx<0)throw new Error('Không tìm thấy phiếu');
       const r=reports[idx];
       if(method==='GET'&&!act){
-        const prods=(r.data&&r.data.products)||[];
+        const prods=(r.data&&r.data.products)?r.data.products:[];
         const total=prods.reduce((s,pr)=>s+(toInt(pr.tong_cai)||pr.rolls.reduce((a,ro)=>a+toInt(ro.so_cai),0)),0);
         return {...r,n_products:prods.length,total,status_vi:STAT[r.status]};
       }
       if(method==='PUT'&&!act){
-        r.machine=body.machine||r.machine;r.report_date=body.report_date||r.report_date;
-        r.shift=body.shift||r.shift;r.worker_name=body.worker_name||r.worker_name;
-        r.data=body.data||r.data;r.updated_at=nowStr();
+        r.machine=defVal(body.machine,r.machine);r.report_date=defVal(body.report_date,r.report_date);
+        r.shift=defVal(body.shift,r.shift);r.worker_name=defVal(body.worker_name,r.worker_name);
+        r.data=defVal(body.data,r.data);r.updated_at=nowStr();
         if(body.submit){r.status='submitted';r.submitted_at=nowStr();}
         this.set('reports',reports);
         return {ok:true,status:r.status,status_vi:STAT[r.status],saved_at:nowStr().slice(11,16)};
       }
-      if(act==='approve'){r.status='approved';r.approved_by=S.me?.name||'Quản lý';r.approved_at=nowStr();r.manager_note='';this.set('reports',reports);return {ok:true};}
-      if(act==='return'){r.status='rejected';r.manager_note=body.note||'';r.approved_by='';r.approved_at='';this.set('reports',reports);return {ok:true};}
+      if(act==='approve'){r.status='approved';r.approved_by=(S.me&&S.me.name)?S.me.name:'Quản lý';r.approved_at=nowStr();r.manager_note='';this.set('reports',reports);return {ok:true};}
+      if(act==='return'){r.status='rejected';r.manager_note=defVal(body.note,'');r.approved_by='';r.approved_at='';this.set('reports',reports);return {ok:true};}
       if(act==='confirm'){
-        (r.data.products||[]).forEach(pr=>(pr.rolls||[]).forEach(ro=>{if(ro.id===body.roll_id){ro.ql_xn=!!body.value;ro.ql_xn_by=ro.ql_xn?(S.me?.name||'Quản lý'):'';}}));
+        (r.data.products||[]).forEach(pr=>(pr.rolls||[]).forEach(ro=>{if(ro.id===body.roll_id){ro.ql_xn=!!body.value;ro.ql_xn_by=ro.ql_xn?((S.me&&S.me.name)?S.me.name:'Quản lý'):'';}}));
         this.set('reports',reports);return {ok:true};
       }
       if(method==='DELETE'){reports.splice(idx,1);this.set('reports',reports);return {ok:true};}
@@ -298,22 +295,27 @@ const LocalDB={
   }
 };
 
-/* ---------- Gọi máy chủ (Tự động chuyển sang LocalDB nếu chạy file lẻ) ---------- */
 async function api(method,url,body,raw){
   const h={'Content-Type':'application/json'};
   if(S.token)h.Authorization='Bearer '+S.token; else if(S.deviceId)h['X-Device-Id']=S.deviceId;
   try{
-    const r=await fetch(url,{method,headers:h,body:body?JSON.stringify(body):undefined});
-    if(r.status===404&&url.startsWith('/api/'))return LocalDB.handle(method,url,body);
-    if(raw){if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||('Lỗi '+r.status));}return r;}
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),3500);
+    const r=await fetch(url,{method,headers:h,body:body?JSON.stringify(body):undefined,signal:ctrl.signal});
+    clearTimeout(timer);
+    const ct=defVal(r.headers.get('content-type'),'');
+    if(r.status===404 || (!raw && !ct.includes('application/json'))){
+      return LocalDB.handle(method,url,body);
+    }
+    if(raw){if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(defVal(j.error,'Lỗi '+r.status));}return r;}
     const j=await r.json().catch(()=>({}));
     if(!r.ok){
       if(r.status===401&&S.token){staffLogoutLocal();}
-      const e=new Error(j.error||('Lỗi '+r.status));e.data=j;throw e;
+      const e=new Error(defVal(j.error,'Lỗi '+r.status));e.data=j;throw e;
     }
     return j;
   }catch(e){
-    if(e.data||e.message.includes('Sai tên')||e.message.includes('Mật khẩu'))throw e;
+    if(e.data||String(e.message).includes('Sai tên')||String(e.message).includes('Mật khẩu'))throw e;
     return LocalDB.handle(method,url,body);
   }
 }
@@ -330,9 +332,6 @@ function askText(title,label,okLabel='Gửi',type='text'){return new Promise(res
   m.addEventListener('click',e=>{if(e.target.closest('[data-yes]')){const v=$('#atx',m).value;m.remove();res(v);}else if(e.target.closest('[data-no]')||e.target===m){m.remove();res(null);}});});}
 const keepScroll=fn=>{const y=window.scrollY;fn();window.scrollTo(0,y);};
 
-/* =====================================================================
-   TẠO FILE EXCEL (.XLSX) TRỰC TIẾP TRÊN TRÌNH DUYỆT (KHÔNG CẦN THƯ VIỆN)
-   ===================================================================== */
 const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[i]=c>>>0;}return t;})();
 function crc32(buf){let c=0xFFFFFFFF;for(let i=0;i<buf.length;i++)c=CRC_TABLE[(c^buf[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
 function makeZip(files){
@@ -394,11 +393,8 @@ function buildXlsxBlob(sheets){
   return makeZip(files);
 }
 
-/* =====================================================================
-   KHỞI ĐỘNG
-   ===================================================================== */
 async function boot(){
-  S.deviceId=localStorage.getItem('cb_dev')||'';S.token=localStorage.getItem('cb_tok')||'';
+  S.deviceId=defVal(localStorage.getItem('cb_dev'),'');S.token=defVal(localStorage.getItem('cb_tok'),'');
   try{
     S.config=await api('GET','/api/config');
     let me=await api('GET','/api/me');
@@ -434,9 +430,6 @@ function staffLoginModal(){
   $('#lgo',m).onclick=go;$('#lp',m).addEventListener('keydown',e=>{if(e.key==='Enter')go();});setTimeout(()=>$('#lu',m).focus(),50);
 }
 
-/* =====================================================================
-   CÔNG NHÂN – trang chủ
-   ===================================================================== */
 async function workerHome(){
   S.view='wHome';S.rep=null;
   app.innerHTML=`<div class="top"><h1>Báo cáo cắt bao<span class="sub">${esc(S.me.name)}</span></h1><button data-act="help">? Hướng dẫn</button><button data-act="editme">⚙</button></div>
@@ -478,16 +471,13 @@ function helpModal(){
   <div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
 }
 
-/* =====================================================================
-   PHIẾU – dữ liệu mẫu
-   ===================================================================== */
 const ROLL_FIELDS=['ma_kh','cuon_so_may_so','ca_ngay_sx','kg_dau_cuon','ma_cn_det','ten_cn_det','ma_pe','cuon_pe','ca_ngay_thoi','kho_bao','dai_cat','dl10','so_cai','dung_thay_cuon','dung_doi_hang','dung_may_hu','dung_cho_hang','dung_khac','dung_khac_ly_do','phe_co_dau','phe_khong_dau','rau_bo','rau_dem'];
 const newRoll=()=>{const r={id:uid(4)};ROLL_FIELDS.forEach(k=>r[k]='');r.ql_xn=false;r.ql_xn_by='';return r;};
 const newProduct=()=>({id:uid(4),ma_dh:'',ma_sp:'',bat_dau:'',ket_thuc:'',tong_cai:'',toc_do_cat:'',toc_do_may:'',tg_dao_cat_chi:'',tg_phong_pe:'',tg_han_pe:'',tg_rut_pe:'',kc_2_bao:'',nhiet_cat_bao:'',nhiet_cat_chi:'',nhiet_han_pe:'',rolls:[newRoll()],
   qc:{yc:{quycach:'',dinhluong:'',quycach_pe:'',so_lo:'',dk_lo:''},dq:{tg:'',b:[false,false,false,false,false],qlc:false,qc:false},lans:[{v:{}}]}});
 function ensureShape(p){const n=newProduct();for(const k in n){if(p[k]===undefined)p[k]=n[k];}
-  p.qc=p.qc||n.qc;p.qc.yc=Object.assign({},n.qc.yc,p.qc.yc||{});p.qc.dq=Object.assign({},n.qc.dq,p.qc.dq||{});if(!p.qc.dq.b||p.qc.dq.b.length!==5)p.qc.dq.b=[false,false,false,false,false];
-  if(!p.qc.lans||!p.qc.lans.length)p.qc.lans=[{v:{}}];p.qc.lans.forEach(l=>l.v=l.v||{});if(!p.rolls||!p.rolls.length)p.rolls=[newRoll()];return p;}
+  p.qc=defVal(p.qc,n.qc);p.qc.yc=Object.assign({},n.qc.yc,defVal(p.qc.yc,{}));p.qc.dq=Object.assign({},n.qc.dq,defVal(p.qc.dq,{}));if(!p.qc.dq.b||p.qc.dq.b.length!==5)p.qc.dq.b=[false,false,false,false,false];
+  if(!p.qc.lans||!p.qc.lans.length)p.qc.lans=[{v:{}}];p.qc.lans.forEach(l=>l.v=defVal(l.v,{}));if(!p.rolls||!p.rolls.length)p.rolls=[newRoll()];return p;}
 
 const OK='ok';
 const QC=[
@@ -538,17 +528,14 @@ const OK_ITEMS=ALL_ITEMS.filter(i=>i.t===OK);
 const lanAnswered=l=>OK_ITEMS.filter(i=>l.v[i.k]).length;
 const lanDone=l=>!!l.v.tg&&lanAnswered(l)===OK_ITEMS.length;
 
-/* =====================================================================
-   MỞ / LƯU PHIẾU
-   ===================================================================== */
 const isWorker=()=>S.me.kind==='worker', isAdmin=()=>S.me.kind==='staff'&&S.me.role==='admin';
 async function openReport(id){
   try{
     const r=await api('GET','/api/reports/'+id);
-    let bk=null;try{bk=JSON.parse(localStorage.getItem('bk_'+id)||'null');}catch(e){}
+    let bk=null;try{bk=JSON.parse(defVal(localStorage.getItem('bk_'+id),'null'));}catch(e){}
     S.rep=r;S.dirty=false;
     if(bk&&isWorker()&&r.status!=='approved'){Object.assign(S.rep,bk.head);S.rep.data=bk.data;S.dirty=true;toast('Đã khôi phục phần chưa kịp lưu – bấm Lưu','ok');}
-    S.rep.data=S.rep.data||{};S.rep.data.products=S.rep.data.products||[];
+    S.rep.data=defVal(S.rep.data,{});S.rep.data.products=defVal(S.rep.data.products,[]);
     S.ro=!(isWorker()?r.status!=='approved':isAdmin());
     if(!S.ro&&!S.rep.data.products.length)S.rep.data.products.push(newProduct());
     S.rep.data.products.forEach(ensureShape);
@@ -565,7 +552,7 @@ function markDirty(){
   try{localStorage.setItem('bk_'+S.rep.id,JSON.stringify({head:{machine:S.rep.machine,report_date:S.rep.report_date,shift:S.rep.shift,worker_name:S.rep.worker_name},data:S.rep.data}));}catch(e){}
   clearTimeout(saveTimer);saveTimer=setTimeout(()=>save(false,true),2500);
 }
-function setSaveText(msg){const el=$('#savest');if(!el)return;el.textContent=msg||(S.dirty?'Chưa lưu…':(S.savedAt?'Đã lưu '+S.savedAt:''));}
+function setSaveText(msg){const el=$('#savest');if(!el)return;el.textContent=defVal(msg,S.dirty?'Chưa lưu…':(S.savedAt?'Đã lưu '+S.savedAt:''));}
 async function save(submit=false,silent=false){
   if(S.ro||!S.rep)return false;
   if(S.saving){S.again=true;return false;}
@@ -579,7 +566,7 @@ async function save(submit=false,silent=false){
     return true;
   }catch(e){
     setSaveText('Chưa lưu được');
-    if(e.data?.errors){modal(`<h3>Chưa gửi được</h3><p>${esc(e.message)}:</p><ul>${e.data.errors.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);}
+    if(e.data&&e.data.errors){modal(`<h3>Chưa gửi được</h3><p>${esc(e.message)}:</p><ul>${e.data.errors.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);}
     else if(!silent)toast(e.message,'bad');
     return false;
   }finally{S.saving=false;if(S.again){S.again=false;if(S.dirty)save(false,true);}}
@@ -607,17 +594,14 @@ async function leaveEditor(){
   if(S.me.kind==='staff')staffHome();else workerHome();
 }
 
-/* =====================================================================
-   GIAO DIỆN PHIẾU
-   ===================================================================== */
 function F(path,label,o={}){
   const v=getPath(S.rep,path)??'';
-  return `<label class="f ${o.cls||''}"><span>${label}${o.req?' <b class="rq">*</b>':''}</span><input type="text" data-p="${path}" ${o.im?`inputmode="${o.im}"`:''} value="${esc(v)}" ${o.ph?`placeholder="${esc(o.ph)}"`:''} ${o.ro?'readonly':''} autocomplete="off"></label>`;}
+  return `<label class="f ${defVal(o.cls,'')}"><span>${label}${o.req?' <b class="rq">*</b>':''}</span><input type="text" data-p="${path}" ${o.im?`inputmode="${o.im}"`:''} value="${esc(v)}" ${o.ph?`placeholder="${esc(o.ph)}"`:''} ${o.ro?'readonly':''} autocomplete="off"></label>`;}
 const FN=(p,l,o={})=>F(p,l,Object.assign({im:'decimal'},o));
 const FI=(p,l,o={})=>F(p,l,Object.assign({im:'numeric'},o));
-function TF(path,label,o={}){const v=getPath(S.rep,path)||'';
+function TF(path,label,o={}){const v=defVal(getPath(S.rep,path),'');
   return `<label class="f"><span>${label}${o.req?' <b class="rq">*</b>':''}</span><div class="tin"><input type="time" data-p="${path}" value="${esc(v)}"><button type="button" class="nowb edit-only" data-act="now" data-p="${path}">Bây giờ</button></div></label>`;}
-function SEG(path,opts,cls=''){const v=getPath(S.rep,path)||'';
+function SEG(path,opts,cls=''){const v=defVal(getPath(S.rep,path),'');
   return `<div class="seg neutral ${cls}">${opts.map(([k,l])=>`<button type="button" class="${v===k?'on':''}" data-act="seg" data-p="${path}" data-v="${k}" data-tog="1">${l}</button>`).join('')}</div>`;}
 function TOG(path,label){const v=getPath(S.rep,path);return `<button type="button" class="chip ${v?'on':''}" data-act="tog" data-p="${path}">${v?'✓ ':''}${label}</button>`;}
 
@@ -639,11 +623,10 @@ function recalcTotal(P){const p=prods()[P];const s=p.rolls.reduce((a,r)=>a+toInt
 function renderEditor(){
   const r=S.rep,P=S.pid,p=prods()[P];
   const title=`Máy ${esc(r.machine)} · Ca ${esc(r.shift)}`;
-  const staff=S.me.kind==='staff';
   let h=`<div class="top"><button data-act="back">←</button><h1 id="etitle">${title}<span class="sub">${fd(r.report_date)} · ${esc(r.worker_name)}</span></h1>${badge(r.status)}</div>
   <div class="wrap">`;
   if(r.status==='rejected'&&r.manager_note)h+=`<div class="note bad"><b>Quản lý trả lại phiếu:</b> ${esc(r.manager_note)}<br><span class="small">Sửa lại rồi bấm “Gửi quản lý duyệt”.</span></div>`;
-  if(r.status==='approved')h+=`<div class="note ok">✓ Đã được <b>${esc(r.approved_by)}</b> duyệt lúc ${esc((r.approved_at||'').slice(11,16))} ${fd(r.approved_at)}. ${isWorker()?'Phiếu đã khóa, không sửa được.':''}</div>`;
+  if(r.status==='approved')h+=`<div class="note ok">✓ Đã được <b>${esc(r.approved_by)}</b> duyệt lúc ${esc(defVal(r.approved_at,'').slice(11,16))} ${fd(r.approved_at)}. ${isWorker()?'Phiếu đã khóa, không sửa được.':''}</div>`;
   if(r.status==='submitted'&&isWorker())h+=`<div class="note info">Phiếu đã gửi, đang chờ quản lý duyệt. Bạn vẫn có thể sửa nếu phát hiện sai.</div>`;
   h+=`<div class="card"><div class="row"><div class="sp"><b>Ngày ${fd(r.report_date)}</b> · Ca <b>${esc(r.shift)}</b> · Máy <b>${esc(r.machine)}</b><div class="small mut">Công nhân: ${esc(r.worker_name)}</div></div>
    ${S.ro?'':`<button class="btn sm" data-act="head">${S.headOpen?'Xong':'Sửa ngày / ca / máy'}</button>`}</div>`;
@@ -708,7 +691,7 @@ function rollHTML(P,R){
     <fieldset><legend>Sản phẩm cắt thực tế</legend><div class="grid">${FN(b+'kho_bao','Khổ bao (cm)')}${FN(b+'dai_cat','Chiều dài cắt sau may (cm)')}${FN(b+'dl10','ĐL 10 cái đầu cuộn (g)')}</div></fieldset>
     <fieldset><legend>Thời gian dừng máy (phút) <span class="mut small" style="font-weight:500">– tổng ${dung} phút</span></legend><div class="grid">${FI(b+'dung_thay_cuon','Thay cuộn')}${FI(b+'dung_doi_hang','Đổi hàng')}${FI(b+'dung_may_hu','Máy hư')}${FI(b+'dung_cho_hang','Chờ hàng')}${FI(b+'dung_khac','Lý do khác')}${F(b+'dung_khac_ly_do','Ghi rõ lý do khác')}</div></fieldset>
     <fieldset><legend>Phế liệu & râu</legend><div class="grid">${FN(b+'phe_co_dau','Phế liệu CÓ đánh dấu (kg)')}${FI(b+'phe_khong_dau','Phế liệu KHÔNG đánh dấu (cái)')}${FI(b+'rau_bo','Râu bỏ')}${FI(b+'rau_dem','Râu đếm')}</div></fieldset>
-    <div class="row" style="margin-top:12px"><div class="sp"><b>Quản lý xác nhận cắt hàng loạt:</b> ${r.ql_xn?`<span class="badge b-approved">✓ ${esc(r.ql_xn_by||'Đã xác nhận')}</span>`:'<span class="badge b-draft">Chưa xác nhận</span>'}</div>
+    <div class="row" style="margin-top:12px"><div class="sp"><b>Quản lý xác nhận cắt hàng loạt:</b> ${r.ql_xn?`<span class="badge b-approved">✓ ${esc(defVal(r.ql_xn_by,'Đã xác nhận'))}</span>`:'<span class="badge b-draft">Chưa xác nhận</span>'}</div>
     ${S.me.kind==='staff'?`<button class="btn sm ${r.ql_xn?'':'ok'}" data-act="rollok" data-id="${r.id}" data-v="${r.ql_xn?0:1}">${r.ql_xn?'Bỏ xác nhận':'✓ Xác nhận'}</button>`:''}
     ${!S.ro&&p.rolls.length>1?`<button class="btn sm bad edit-only" data-act="delroll" data-i="${R}">Xóa cuộn</button>`:''}</div></div>`;
   }
@@ -733,14 +716,14 @@ function qcCell(P,L,item){
   if(item.t==='seg')return SEG(base+item.k,item.o);
   if(item.t==='text')return F(base+item.k,'',{ph:item.ph}).replace('<span></span>','');
   if(item.t==='num')return F(base+item.k,'',{im:'decimal',ph:item.ph}).replace('<span></span>','');
-  if(item.t==='two')return `<div class="two"><input type="text" data-p="${base+item.k}_a" placeholder="${item.a}" value="${esc(v[item.k+'_a']||'')}"><input type="text" data-p="${base+item.k}_b" placeholder="${item.b}" value="${esc(v[item.k+'_b']||'')}"></div>`;
+  if(item.t==='two')return `<div class="two"><input type="text" data-p="${base+item.k}_a" placeholder="${item.a}" value="${esc(defVal(v[item.k+'_a'],''))}"><input type="text" data-p="${base+item.k}_b" placeholder="${item.b}" value="${esc(defVal(v[item.k+'_b'],''))}"></div>`;
   return '';
 }
 function step4(P){
   const p=prods()[P],q=p.qc,b=`data.products.${P}.qc.`,r=S.rep;
   if(S.lan>=q.lans.length)S.lan=0;
   let h=`<h3>④ Phiếu kiểm tra dọn quang & chất lượng bao cắt</h3>
-  <div class="note info small" style="margin-top:8px">Mã ĐH: <b>${esc(p.ma_dh||'(chưa nhập)')}</b> · Mã SP: <b>${esc(p.ma_sp||'(chưa nhập)')}</b> · Ca ${esc(r.shift)} · ${fd(r.report_date)} · Máy ${esc(r.machine)}<br><span class="mut">Biểu mẫu BM.05-KH.01-CA</span></div>
+  <div class="note info small" style="margin-top:8px">Mã ĐH: <b>${esc(defVal(p.ma_dh,'(chưa nhập)'))}</b> · Mã SP: <b>${esc(defVal(p.ma_sp,'(chưa nhập)'))}</b> · Ca ${esc(r.shift)} · ${fd(r.report_date)} · Máy ${esc(r.machine)}<br><span class="mut">Biểu mẫu BM.05-KH.01-CA</span></div>
   <fieldset><legend>Yêu cầu theo đơn hàng (Y/C) – để đối chiếu</legend><div class="grid">
    ${F(b+'yc.quycach','Quy cách bao (R+H) x D')}${FN(b+'yc.dinhluong','Định lượng (g/cái)')}${F(b+'yc.quycach_pe','Quy cách túi PE (R x D)')}${F(b+'yc.so_lo','Đục lỗ: số lỗ')}${F(b+'yc.dk_lo','Đục lỗ: Đ.kính lỗ')}</div></fieldset>
   <fieldset><legend>Dọn quang (khi đổi hàng)</legend><div class="grid">${TF(b+'dq.tg','Thời gian dọn')}</div>
@@ -752,12 +735,12 @@ function step4(P){
   <div class="lantabs">${q.lans.map((l,i)=>`<button class="chip ${i===S.lan?'on':''}" data-act="lan" data-i="${i}">Lần ${i+1}${lanDone(l)?' ✓':''}</button>`).join('')}${S.ro||q.lans.length>=10?'':'<button class="chip add" data-act="addlan">＋ Thêm lần kiểm tra</button>'}</div>
   <div class="qhead"><div></div><div class="qcells">${q.lans.map((l,i)=>`<div>Lần ${i+1}${lanDone(l)?' ✓':''}</div>`).join('')}</div></div>`;
   h+=`<div class="qg"><h4>Thời gian kiểm tra</h4><div class="qrow"><div class="ql">Giờ kiểm tra</div><div class="qcells">${q.lans.map((l,i)=>`<div class="qcell ${i===S.lan?'cur':''}"><span class="lanlbl">Lần ${i+1}</span>
-    <div class="tin"><input type="time" data-p="${b}lans.${i}.v.tg" value="${esc(l.v.tg||'')}"><button type="button" class="nowb edit-only" data-act="now" data-p="${b}lans.${i}.v.tg">Bây giờ</button></div>
+    <div class="tin"><input type="time" data-p="${b}lans.${i}.v.tg" value="${esc(defVal(l.v.tg,''))}"><button type="button" class="nowb edit-only" data-act="now" data-p="${b}lans.${i}.v.tg">Bây giờ</button></div>
     <div class="qact edit-only"><button type="button" class="btn sm ok" data-act="allok" data-i="${i}">✓ Đạt hết</button>${q.lans.length>1?`<button type="button" class="btn sm" data-act="dellan" data-i="${i}">Xóa lần</button>`:''}</div></div>`).join('')}</div></div></div>`;
   QC.forEach(g=>{
     h+=`<div class="qg"><h4>${g.t}</h4>`;
     g.items.forEach(it=>{
-      const yc=it.yc?`<span class="yc">Y/C: <b data-yc="${it.yc}">${esc(q.yc[it.yc]||'—')}</b></span>`:(it.yc2?`<span class="yc">Y/C: <b data-yc="lo">${esc((q.yc.so_lo||'—')+' lỗ / Ø '+(q.yc.dk_lo||'—'))}</b></span>`:'');
+      const yc=it.yc?`<span class="yc">Y/C: <b data-yc="${it.yc}">${esc(defVal(q.yc[it.yc],'—'))}</b></span>`:(it.yc2?`<span class="yc">Y/C: <b data-yc="lo">${esc(defVal(q.yc.so_lo,'—')+' lỗ / Ø '+defVal(q.yc.dk_lo,'—'))}</b></span>`:'');
       h+=`<div class="qrow"><div class="ql">${it.l}${it.na?' <span class="mut small">(nếu có)</span>':''}${yc}</div><div class="qcells">${q.lans.map((l,i)=>`<div class="qcell ${i===S.lan?'cur':''}"><span class="lanlbl">Lần ${i+1}</span>${qcCell(P,i,it)}</div>`).join('')}</div></div>`;
     });h+='</div>';
   });
@@ -771,9 +754,6 @@ function dqHelp(){modal(`<h3>Dọn quang khi đổi hàng – 5 bước</h3><ol 
  <li><b>B5 – Vệ sinh</b> sạch sẽ máy móc, khu vực sản xuất trước khi chuyển sang sản phẩm mới.</li></ol>
  <div class="row end"><button class="btn pri" data-close>Đóng</button></div>`);}
 
-/* =====================================================================
-   SỰ KIỆN
-   ===================================================================== */
 document.addEventListener('input',e=>{
   const t=e.target;if(!t.dataset||!t.dataset.p||!S.rep||S.view!=='edit')return;
   const v=t.type==='checkbox'?t.checked:t.value;setPath(S.rep,t.dataset.p,v);
@@ -781,8 +761,7 @@ document.addEventListener('input',e=>{
   if(m){const P=+m[1];
     if(/rolls\.\d+\.so_cai$/.test(m[2])){recalcTotal(P);}
     else if(m[2]==='tong_cai'){const g=$('#grand');if(g)g.textContent=fmtN(prods().reduce((a,x)=>a+toInt(x.tong_cai),0));}
-    const y=/^qc\.yc\.(\w+)$/.exec(m[2]);
-    if(y){$$(`[data-yc="${y[1]}"]`).forEach(el=>el.textContent=v||'—');const q=prods()[P].qc.yc;$$('[data-yc="lo"]').forEach(el=>el.textContent=(q.so_lo||'—')+' lỗ / Ø '+(q.dk_lo||'—'));}
+    const y=/^qc\.yc\.(\w+)$/.exec(m[2]); if(y){$$(`[data-yc="${y[1]}"]`).forEach(el=>el.textContent=defVal(v,'—'));const q=prods()[P].qc.yc;$$('[data-yc="lo"]').forEach(el=>el.textContent=defVal(q.so_lo,'—')+' lỗ / Ø '+defVal(q.dk_lo,'—'));}
   }
   if(t.dataset.re)return;
   markDirty();
@@ -838,7 +817,7 @@ const ACT={
     await api('DELETE','/api/reports/'+S.rep.id);S.dirty=false;toast('Đã xóa','ok');staffHome();},
   tab:b=>{S.tab=b.dataset.t;staffHome();},
   refresh:()=>staffHome(),
-  filter:()=>{S.f={from:$('#ff').value,to:$('#ft').value,shift:$('#fs').value,machine:$('#fm').value,status:$('#fst')?.value||''};staffHome();},
+  filter:()=>{S.f={from:$('#ff').value,to:$('#ft').value,shift:$('#fs').value,machine:$('#fm').value,status:defVal($('#fst')?.value,'')};staffHome();},
   logout:async()=>{try{await api('POST','/api/logout');}catch(e){}staffLogoutLocal();S.me=null;await boot();},
   chpw:()=>pwModal(),
   export:()=>doExport(),
@@ -846,16 +825,15 @@ const ACT={
   useredit:b=>userModal(+b.dataset.id),
   devrename:async b=>{const n=await askText('Đổi tên thiết bị','Tên công nhân','Lưu');if(n===null)return;await api('PUT','/api/devices/'+b.dataset.id,{name:n});staffHome();},
   devdel:async b=>{if(!await ask('Xóa thiết bị?','Xóa thiết bị chưa có phiếu này?','Xóa',true))return;await api('DELETE','/api/devices/'+b.dataset.id);staffHome();},
-  savesettings:async()=>{const machines=$('#sm').value.split('\n').map(x=>x.trim()).filter(Boolean);
-    const shifts=$('#ss').value.split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const [c,...n]=x.split('\vert{}');return {code:c.trim(),name:(n.join('\vert{}')\vert{}\vert{}c).trim()};}); await api('PUT','/api/settings',{machines,shifts});S.config=await api('GET','/api/config');toast('Đã lưu cài đặt','ok');}, }; document.addEventListener('click',async e=>{ const b=e.target.closest('[data-act]');if(!b\vert{}\vert{}b.disabled)return; if(b.tagName==='A')e.preventDefault(); const f=ACT[b.dataset.act];if(!f)return; try{await f(b,e);}catch(err){toast(err.message,'bad');} }); function refreshLanLabels(){ const q=prods()[S.pid].qc;$$('.lantabs .chip[data-act="lan"]').forEach((c,i)=>{c.textContent=`Lần ${i+1}${lanDone(q.lans[i])?' ✓':''}`;});
+  savesettings:async()=>{
+    const machines=$('#sm').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    const shifts=$('#ss').value.split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{ const [c,...n]=x.split(PIPE); const joined=n.join(PIPE); return {code:c.trim(),name:defVal(joined,c).trim()}; }); await api('PUT','/api/settings',{machines,shifts}); S.config=await api('GET','/api/config'); toast('Đã lưu cài đặt','ok'); }, }; document.addEventListener('click',async e=>{ const b=e.target.closest('[data-act]'); if(!b)return; if(b.disabled)return; if(b.tagName==='A')e.preventDefault(); const f=ACT[b.dataset.act]; if(!f)return; try{await f(b,e);}catch(err){toast(err.message,'bad');} }); function refreshLanLabels(){ const q=prods()[S.pid].qc; $$('.lantabs .chip[data-act="lan"]').forEach((c,i)=>{c.textContent=`Lần ${i+1}${lanDone(q.lans[i])?' ✓':''}`;});
   $$('.qhead .qcells>div').forEach((c,i)=>{c.textContent=`Lần ${i+1}${lanDone(q.lans[i])?' ✓':''}`;});
-  const tab=$$('.tab')[3];if(tab){const d=lanDone(q.lans[0]);tab.classList.toggle('done',d);tab.querySelector('small').textContent=d?'✓ xong':'chưa xong';}
+  const tab=$$('.tab')[3];
+  if(tab){const d=lanDone(q.lans[0]);tab.classList.toggle('done',d);tab.querySelector('small').textContent=d?'✓ xong':'chưa xong';}
 }
 window.addEventListener('beforeunload',e=>{if(S.dirty&&!S.ro){e.preventDefault();e.returnValue='';}});
 
-/* =====================================================================
-   QUẢN LÝ CA / ADMIN
-   ===================================================================== */
 function defFilters(){const d=new Date();const f=new Date();f.setDate(f.getDate()-7);return {from:ymd(f),to:ymd(d),shift:'',machine:'',status:''};}
 function staffShell(inner,tab){
   const adm=isAdmin();
@@ -873,7 +851,7 @@ async function staffHome(){
   if(t==='users'&&isAdmin())return usersView();
   if(t==='devices'&&isAdmin())return devicesView();
   if(t==='settings'&&isAdmin())return settingsView();
-  const f=S.f||(S.f=defFilters());
+  const f=S.f?S.f:(S.f=defFilters());
   const q=new URLSearchParams();
   if(t==='pending'){q.set('status','submitted');}
   else{['from','to','shift','machine','status'].forEach(k=>f[k]&&q.set(k,f[k]));}
@@ -893,7 +871,7 @@ async function staffHome(){
   }catch(e){$('#lst').innerHTML=`<div class="note bad">${esc(e.message)}</div>`;}
 }
 function exportView(){
-  const f=S.ef||(S.ef=defFilters());
+  const f=S.ef?S.ef:(S.ef=defFilters());
   staffShell(`<div class="card" style="max-width:720px"><h3>Xuất file Excel sản lượng cắt bao</h3>
   <p class="mut small">Mỗi dòng = 1 sản phẩm cắt: Máy, Ngày, Ca, Mã ĐH, Mã SP, Số cái cắt được, Giờ bắt đầu (<b>hh:mm:ss</b>), Giờ kết thúc (<b>hh:mm:ss</b>), Tốc độ cắt/may… Sheet 2 là chi tiết từng cuộn.</p>
   <div class="grid g2" style="margin:10px 0">
@@ -907,23 +885,24 @@ async function doExport(){
   const q=new URLSearchParams({from:$('#xf').value,to:$('#xt').value,shift:$('#xs').value,machine:$('#xm').value,status:$('#xst').value});
   S.ef={from:$('#xf').value,to:$('#xt').value};
   const r=await api('GET','/api/reports?'+q);
-  const fullReports=await Promise.all((r.reports||[]).map(x=>api('GET','/api/reports/'+x.id)));
+  const fullReports=await Promise.all(defVal(r.reports,[]).map(x=>api('GET','/api/reports/'+x.id)));
   const rows1=[], rows2=[];
   fullReports.forEach(rep=>{
-    const [yy,mm,dd]=(rep.report_date||'').split('-').map(Number);
+    const [yy,mm,dd]=defVal(rep.report_date,'').split('-').map(Number);
     const dt=yy?new Date(Date.UTC(yy,mm-1,dd)):rep.report_date;
-    ((rep.data&&rep.data.products)||[]).forEach(p=>{
+    const plist=(rep.data&&rep.data.products)?rep.data.products:[];
+    plist.forEach(p=>{
       const tot=toInt(p.tong_cai)||p.rolls.reduce((a,ro)=>a+toInt(ro.so_cai),0);
-      let ng=0;((p.qc&&p.qc.lans)||[]).forEach(l=>Object.values(l.v||{}).forEach(v=>{if(v==='ng')ng++;}));
-      rows1.push([rep.machine,dt,rep.shift,p.ma_dh||'',p.ma_sp||'',tot,fmtTimeSAP(p.bat_dau),fmtTimeSAP(p.ket_thuc),
-        toNum(p.toc_do_cat)??(p.toc_do_cat||''),toNum(p.toc_do_may)??(p.toc_do_may||''),rep.worker_name,STAT[rep.status]||rep.status,rep.approved_by||'',ng]);
-      (p.rolls||[]).forEach(ro=>{
-        const hasData=Object.entries(ro).some(([k,v])=>!['id','ql_xn','ql_xn_by'].includes(k)&&String(v||'').trim()!=='');
+      let ng=0;((p.qc&&p.qc.lans)?p.qc.lans:[]).forEach(l=>Object.values(defVal(l.v,{})).forEach(v=>{if(v==='ng')ng++;}));
+      rows1.push([rep.machine,dt,rep.shift,defVal(p.ma_dh,''),defVal(p.ma_sp,''),tot,fmtTimeSAP(p.bat_dau),fmtTimeSAP(p.ket_thuc),
+        toNum(p.toc_do_cat)??defVal(p.toc_do_cat,''),toNum(p.toc_do_may)??defVal(p.toc_do_may,''),rep.worker_name,defVal(STAT[rep.status],rep.status),defVal(rep.approved_by,''),ng]);
+      defVal(p.rolls,[]).forEach(ro=>{
+        const hasData=Object.entries(ro).some(([k,v])=>!['id','ql_xn','ql_xn_by'].includes(k)&&String(defVal(v,'')).trim()!=='');
         if(!hasData)return;
-        const n=(k,int=false)=>int?(toInt(ro[k])||''):(toNum(ro[k])??(ro[k]||''));
-        rows2.push([rep.machine,dt,rep.shift,p.ma_dh||'',p.ma_sp||'',ro.ma_kh||'',ro.cuon_so_may_so||'',ro.ca_ngay_sx||'',n('kg_dau_cuon'),
-          ro.ma_cn_det||'',ro.ten_cn_det||'',ro.ma_pe||'',ro.cuon_pe||'',ro.ca_ngay_thoi||'',n('kho_bao'),n('dai_cat'),n('dl10'),n('so_cai',true),
-          n('dung_thay_cuon'),n('dung_doi_hang'),n('dung_may_hu'),n('dung_cho_hang'),n('dung_khac'),ro.dung_khac_ly_do||'',
+        const n=(k,int=false)=>int?defVal(toInt(ro[k]),''):(toNum(ro[k])??defVal(ro[k],''));
+        rows2.push([rep.machine,dt,rep.shift,defVal(p.ma_dh,''),defVal(p.ma_sp,''),defVal(ro.ma_kh,''),defVal(ro.cuon_so_may_so,''),defVal(ro.ca_ngay_sx,''),n('kg_dau_cuon'),
+          defVal(ro.ma_cn_det,''),defVal(ro.ten_cn_det,''),defVal(ro.ma_pe,''),defVal(ro.cuon_pe,''),defVal(ro.ca_ngay_thoi,''),n('kho_bao'),n('dai_cat'),n('dl10'),n('so_cai',true),
+          n('dung_thay_cuon'),n('dung_doi_hang'),n('dung_may_hu'),n('dung_cho_hang'),n('dung_khac'),defVal(ro.dung_khac_ly_do,''),
           n('phe_co_dau'),n('phe_khong_dau',true),n('rau_bo',true),n('rau_dem',true),ro.ql_xn?'Có':'',rep.worker_name]);
       });
     });
@@ -969,14 +948,15 @@ function pwModal(){
 async function devicesView(){
   staffShell('<div id="lst"><p class="mut">Đang tải…</p></div>','devices');
   const r=await api('GET','/api/devices');
+  const rows=r.devices.map(d=>`<tr><td data-l="Tên"><b>${esc(d.name)}</b></td><td data-l="Máy">${esc(defVal(d.last_machine,''))}</td><td class="num" data-l="Số phiếu">${d.n_reports}</td><td data-l="Gần nhất">${esc(defVal(d.last_seen,'').slice(0,16))}</td>
+  <td><button class="btn sm" data-act="devrename" data-id="${d.id}">Đổi tên</button> ${d.n_reports?'':`<button class="btn sm bad" data-act="devdel" data-id="${d.id}">Xóa</button>`}</td></tr>`).join('');
   $('#lst').innerHTML=`<div class="card"><h3>Thiết bị công nhân</h3><p class="small mut">Mỗi điện thoại/trình duyệt là 1 thiết bị.</p></div>
-  <table class="rt"><thead><tr><th>Tên</th><th>Máy hay làm</th><th class="num">Số phiếu</th><th>Dùng gần nhất</th><th></th></tr></thead><tbody>${r.devices.map(d=>`<tr><td data-l="Tên"><b>${esc(d.name)}</b></td><td data-l="Máy">${esc(d.last_machine||'')}</td><td class="num" data-l="Số phiếu">${d.n_reports}</td><td data-l="Gần nhất">${esc((d.last_seen||'').slice(0,16))}</td>
-  <td><button class="btn sm" data-act="devrename" data-id="${d.id}">Đổi tên</button> ${d.n_reports?'':`<button class="btn sm bad" data-act="devdel" data-id="${d.id}">Xóa</button>`}</td></tr>`).join('')||'<tr><td colspan="5">Chưa có thiết bị nào.</td></tr>'}</tbody></table>`;
+  <table class="rt"><thead><tr><th>Tên</th><th>Máy hay làm</th><th class="num">Số phiếu</th><th>Dùng gần nhất</th><th></th></tr></thead><tbody>${defVal(rows,'<tr><td colspan="5">Chưa có thiết bị nào.</td></tr>')}</tbody></table>`;
 }
 function settingsView(){
   staffShell(`<div class="card" style="max-width:720px"><h3>Cài đặt</h3>
   <label class="f"><span>Danh sách máy cắt (mỗi dòng 1 máy)</span><textarea id="sm" style="min-height:140px">${esc(S.config.machines.join('\n'))}</textarea></label>
-  <label class="f" style="margin-top:10px"><span>Các ca (mỗi dòng: MÃ|Tên ca). Dòng 1 = ca ngày (07h–19h), dòng 2 = ca đêm (19h–07h)</span><textarea id="ss">${esc(S.config.shifts.map(s=>s.code+'|'+s.name).join('\n'))}</textarea></label>
+  <label class="f" style="margin-top:10px"><span>Các ca (mỗi dòng: MÃ-Tên ca). Dòng 1 = ca ngày (07h–19h), dòng 2 = ca đêm (19h–07h)</span><textarea id="ss">${esc(S.config.shifts.map(s=>s.code+PIPE+s.name).join('\n'))}</textarea></label>
   <button class="btn pri" style="margin-top:12px" data-act="savesettings">Lưu cài đặt</button></div>`,'settings');
 }
 boot();
