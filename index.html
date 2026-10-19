@@ -414,7 +414,7 @@ function welcome(){
   app.innerHTML=`<div class="center"><div class="card">${logoHTML}
   <h2 style="text-align:center">Báo cáo cắt bao</h2>
   <p class="mut" style="text-align:center;margin:4px 0 16px">Lần đầu dùng điện thoại/máy này – nhập tên của bạn</p>
-  <label class="f"><span>Họ và tên công nhân</span><input id="wn" type="text" autocomplete="off" placeholder="VD: Nguyễn Văn A"></label>
+  <label class="f"><span>Họ và tên công nhân (C01)</span><input id="wn" type="text" autocomplete="off" placeholder="VD: Nguyễn Văn A"></label>
   <label class="f" style="margin-top:10px"><span>Máy cắt hay làm (có thể đổi sau)</span><select id="wm">${ms.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label>
   <button class="btn pri lg" style="margin-top:16px" data-act="register">Bắt đầu</button>
   <p class="small mut" style="margin-top:14px;text-align:center">Dùng được trên cả Wi-Fi nội bộ và mạng 4G cá nhân.</p>
@@ -463,7 +463,7 @@ function newRepModal(){
 function helpModal(){
   modal(`<h3>Hướng dẫn nhanh</h3><ol class="steps">
   <li><b>Tạo phiếu</b>: kiểm tra ngày – ca – máy, bấm “Bắt đầu”.</li>
-  <li><b>Mỗi sản phẩm cắt = 1 thẻ</b>. Điền 4 bước: <b>① Đơn hàng</b> → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
+  <li><b>Mỗi sản phẩm cắt = 1 thẻ</b>. Điền 4 bước: <b>① Đơn hàng</b> (chọn công nhân C01-C04) → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
   <li>Đổi đơn hàng/sản phẩm mới: bấm <b>＋ Thêm sản phẩm</b>.</li>
   <li>Phiếu kiểm tra chất lượng: bấm <b>Đạt</b> / <b>Không đạt</b> từng dòng. Nhanh nhất: bấm <b>“✓ Đạt hết”</b> rồi sửa dòng nào không đạt.</li>
   <li>Phiếu <b>tự động lưu</b>. Điền xong bấm <b>“Gửi quản lý duyệt”</b>.</li>
@@ -471,16 +471,23 @@ function helpModal(){
   <div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
 }
 
-const ROLL_FIELDS=['ma_kh','cuon_so_may_so','ca_ngay_sx','kg_dau_cuon','ma_cn_det','ten_cn_det','ma_pe','cuon_pe','ca_ngay_thoi','kho_bao','dai_cat','dl10','so_cai','phe_co_dau','phe_khong_dau','rau_bo','rau_dem'];
+const ROLL_FIELDS=['ma_kh','cuon_so_may_so','ca_ngay_sx','kg_dau_cuon','ma_pe','cuon_pe','ca_ngay_thoi','kho_bao','dai_cat','dl10','so_cai','phe_co_dau','phe_khong_dau','rau_bo','rau_dem'];
 const newRoll=()=>{const r={id:uid(4)};ROLL_FIELDS.forEach(k=>r[k]='');r.ql_xn=false;r.ql_xn_by='';return r;};
 const newProduct=()=>({
-  id:uid(4),ma_dh:'',ma_sp:'',bat_dau:'',ket_thuc:'',tong_cai:'',
+  id:uid(4),ma_dh:'',ma_sp:'',
+  c01_id:'', c01_name:S.me?.name||'',
+  c02_id:'', c02_name:'',
+  c03_id:'', c03_name:'',
+  c04_id:'', c04_name:'',
+  bat_dau:'',ket_thuc:'',tong_cai:'',
   toc_do_cat:'',toc_do_may:'',tg_dao_cat_chi:'',tg_phong_pe:'',tg_han_pe:'',tg_rut_pe:'',kc_2_bao:'',
   nhiet_cat_bao:'',nhiet_cat_chi:'',nhiet_han_pe:'',
   dung_thay_cuon:'',dung_doi_hang:'',dung_may_hu:'',dung_cho_hang:'',dung_khac:'',dung_khac_ly_do:'',
   rolls:[newRoll()],
   qc:{yc:{quycach:'',dinhluong:'',quycach_pe:'',so_lo:'',dk_lo:''},dq:{tg:'',b:[false,false,false,false,false],qlc:false,qc:false},lans:[{v:{}}]}});
-function ensureShape(p){const n=newProduct();for(const k in n){if(p[k]===undefined)p[k]=n[k];}
+
+function ensureShape(p){
+  const n=newProduct();for(const k in n){if(p[k]===undefined)p[k]=n[k];}
   p.qc=defVal(p.qc,n.qc);p.qc.yc=Object.assign({},n.qc.yc,defVal(p.qc.yc,{}));p.qc.dq=Object.assign({},n.qc.dq,defVal(p.qc.dq,{}));if(!p.qc.dq.b||p.qc.dq.b.length!==5)p.qc.dq.b=[false,false,false,false,false];
   if(!p.qc.lans||!p.qc.lans.length)p.qc.lans=[{v:{}}];p.qc.lans.forEach(l=>l.v=defVal(l.v,{}));if(!p.rolls||!p.rolls.length)p.rolls=[newRoll()];return p;}
 
@@ -633,13 +640,13 @@ function renderEditor(){
   if(r.status==='rejected'&&r.manager_note)h+=`<div class="note bad"><b>Quản lý trả lại phiếu:</b> ${esc(r.manager_note)}<br><span class="small">Sửa lại rồi bấm “Gửi quản lý duyệt”.</span></div>`;
   if(r.status==='approved')h+=`<div class="note ok">✓ Đã được <b>${esc(r.approved_by)}</b> duyệt lúc ${esc(defVal(r.approved_at,'').slice(11,16))} ${fd(r.approved_at)}. ${isWorker()?'Phiếu đã khóa, không sửa được.':''}</div>`;
   if(r.status==='submitted'&&isWorker())h+=`<div class="note info">Phiếu đã gửi, đang chờ quản lý duyệt. Bạn vẫn có thể sửa nếu phát hiện sai.</div>`;
-  h+=`<div class="card"><div class="row"><div class="sp"><b>Ngày ${fd(r.report_date)}</b> · Ca <b>${esc(r.shift)}</b> · Máy <b>${esc(r.machine)}</b><div class="small mut">Công nhân: ${esc(r.worker_name)}</div></div>
+  h+=`<div class="card"><div class="row"><div class="sp"><b>Ngày ${fd(r.report_date)}</b> · Ca <b>${esc(r.shift)}</b> · Máy <b>${esc(r.machine)}</b><div class="small mut">Người nhập: ${esc(r.worker_name)}</div></div>
    ${S.ro?'':`<button class="btn sm" data-act="head">${S.headOpen?'Xong':'Sửa ngày / ca / máy'}</button>`}</div>`;
   if(S.headOpen&&!S.ro){
     h+=`<div class="grid g2" style="margin-top:10px"><label class="f"><span>Ngày sản xuất</span><input type="date" data-p="report_date" data-re="1" value="${esc(r.report_date)}"></label>
     <label class="f"><span>Máy cắt số</span><select data-p="machine" data-re="1">${[...new Set([...S.config.machines,r.machine])].map(m=>`<option ${m===r.machine?'selected':''}>${esc(m)}</option>`).join('')}</select></label>
     <div><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span><div class="seg neutral" style="margin-top:3px">${S.config.shifts.map(s=>`<button type="button" class="${s.code===r.shift?'on':''}" data-act="seg" data-p="shift" data-v="${esc(s.code)}" data-re="1">${esc(s.name)}<br><small>${esc(s.code)}</small></button>`).join('')}</div></div>
-    ${F('worker_name','Tên công nhân (P1 / P2)')}</div>`;
+    ${F('worker_name','Tên người nhập (C01)')}</div>`;
   }
   h+=`</div>`;
   h+=`<div class="chips" style="margin-bottom:8px">${prods().map((x,i)=>`<button class="chip ${i===P?'on':''}" data-act="prod" data-i="${i}">SP ${i+1}${x.ma_sp?': '+esc(x.ma_sp):''}</button>`).join('')}${S.ro?'':'<button class="chip add" data-act="addprod">＋ Thêm sản phẩm</button>'}</div>`;
@@ -674,10 +681,24 @@ function step1(P){
   const b=`data.products.${P}.`,p=prods()[P];
   const auto=p.rolls.reduce((a,r)=>a+toInt(r.so_cai),0)>0;
   const dung=['dung_thay_cuon','dung_doi_hang','dung_may_hu','dung_cho_hang','dung_khac'].reduce((a,k)=>a+toInt(p[k]),0);
-  return `<h3>① Đơn hàng đang cắt</h3>
+  return `<h3>① Đơn hàng & Công nhân thực hiện</h3>
   <div class="grid g2" style="margin-top:8px">
     ${F(b+'ma_dh','Mã đơn hàng',{req:1,ph:'VD: ĐH-2410-01'})}
     ${F(b+'ma_sp','Mã sản phẩm',{req:1,ph:'VD: SP-1234'})}
+  </div>
+  <fieldset style="margin-top:12px"><legend>Công nhân thực hiện (Tối đa 4 người)</legend>
+    <div class="grid g2">
+      ${F(b+'c01_id','Mã CN (C01 - Mặc định)',{ph:'VD: NV01'})}
+      ${F(b+'c01_name','Tên CN (C01)',{ph:'VD: Nguyễn Văn A'})}
+      ${F(b+'c02_id','Mã CN (C02 - Nếu có)',{ph:'VD: NV02'})}
+      ${F(b+'c02_name','Tên CN (C02)',{ph:'VD: Trần Văn B'})}
+      ${F(b+'c03_id','Mã CN (C03 - Nếu có)',{ph:'VD: NV03'})}
+      ${F(b+'c03_name','Tên CN (C03)',{ph:'VD: Lê Văn C'})}
+      ${F(b+'c04_id','Mã CN (C04 - Nếu có)',{ph:'VD: NV04'})}
+      ${F(b+'c04_name','Tên CN (C04)',{ph:'VD: Phạm Văn D'})}
+    </div>
+  </fieldset>
+  <div class="grid g2" style="margin-top:12px">
     ${TF(b+'bat_dau','Giờ bắt đầu cắt',{req:1})}
     ${TF(b+'ket_thuc','Giờ kết thúc',{req:1})}
     ${FI(b+'tong_cai','Tổng số cái cắt được',{req:1,cls:'big',ro:auto||S.ro})}
@@ -707,8 +728,8 @@ function rollHTML(P,R){
   let h=`<div class="roll"><button class="rh" data-act="togroll" data-id="${r.id}"><b>Cuộn ${R+1}${r.cuon_so_may_so?' · '+esc(r.cuon_so_may_so):''}</b><span class="${toInt(r.so_cai)?'':'mut'}">${toInt(r.so_cai)?fmtN(toInt(r.so_cai))+' cái':'chưa nhập'}</span><span>${open?'▲':'▼'}</span></button>`;
   if(open){
     h+=`<div class="rb"><div class="grid g2" style="margin-top:6px">${FI(b+'so_cai','Số cái cắt được',{req:1,cls:'big'})}</div>
-    <fieldset><legend>Thông tin đầu cuộn Dệt / Tráng / Lộn / In flexo</legend><div class="grid">${F(b+'ma_kh','Mã KH')}${F(b+'cuon_so_may_so','Cuộn số và Máy số')}${F(b+'ca_ngay_sx','Ca và ngày sản xuất')}${FN(b+'kg_dau_cuon','Số kg / mét đầu cuộn')}${F(b+'ma_cn_det','Mã CN Dệt')}${F(b+'ten_cn_det','Tên CN Dệt')}</div></fieldset>
-    <fieldset><legend>Thông tin cuộn PE</legend><div class="grid">${F(b+'ma_pe','Mã PE')}${F(b+'cuon_pe','Cuộn số / Máy thổi số')}${F(b+'ca_ngay_thoi','Ca, ngày thổi')}</div></fieldset>
+    <fieldset><legend>Thông tin đầu cuộn Dệt / Tráng / Lộn / In flexo</legend><div class="grid">${F(b+'ma_kh','Mã KH')}${F(b+'cuon_so_may_so','Cuộn số và Máy số')}${F(b+'ca_ngay_sx','Ca và ngày sản xuất')}${FN(b+'kg_dau_cuon','Số kg / mét đầu cuộn')}</div></fieldset>
+    <fieldset><legend>Thông tin cuộn PE (Có thể để trống nếu không lồng PE)</legend><div class="grid">${F(b+'ma_pe','Mã PE')}${F(b+'cuon_pe','Cuộn số / Máy thổi số')}${F(b+'ca_ngay_thoi','Ca, ngày thổi')}</div></fieldset>
     <fieldset><legend>Sản phẩm cắt thực tế</legend><div class="grid">${FN(b+'kho_bao','Khổ bao (cm)')}${FN(b+'dai_cat','Chiều dài cắt sau may (cm)')}${FN(b+'dl10','ĐL 10 cái đầu cuộn (g)')}</div></fieldset>
     <fieldset><legend>Phế liệu & râu</legend><div class="grid">${FN(b+'phe_co_dau','Phế liệu CÓ đánh dấu (kg)')}${FI(b+'phe_khong_dau','Phế liệu KHÔNG đánh dấu (cái)')}${FI(b+'rau_bo','Râu bỏ')}${FI(b+'rau_dem','Râu đếm')}</div></fieldset>
     <div class="row" style="margin-top:12px"><div class="sp"><b>Quản lý xác nhận cắt hàng loạt:</b> ${r.ql_xn?`<span class="badge b-approved">✓ ${esc(defVal(r.ql_xn_by,'Đã xác nhận'))}</span>`:'<span class="badge b-draft">Chưa xác nhận</span>'}</div>
@@ -719,11 +740,11 @@ function rollHTML(P,R){
 }
 
 function step3(P){const b=`data.products.${P}.`;
-  return `<h3>③ Thông số máy cắt</h3>
+  return `<h3>③ Thông số máy cắt (Các mục PE có thể để trống nếu không dùng)</h3>
   <fieldset><legend>Tốc độ</legend><div class="grid">${FN(b+'toc_do_cat','Cắt',{req:1,cls:'big'})}${FN(b+'toc_do_may','May')}</div></fieldset>
-  <fieldset><legend>Thời gian</legend><div class="grid">${FN(b+'tg_dao_cat_chi','Dao cắt chỉ')}${FN(b+'tg_phong_pe','Phóng PE')}${FN(b+'tg_han_pe','Hàn PE')}${FN(b+'tg_rut_pe','Rút PE')}</div></fieldset>
+  <fieldset><legend>Thời gian (Có thể để trống)</legend><div class="grid">${FN(b+'tg_dao_cat_chi','Dao cắt chỉ')}${FN(b+'tg_phong_pe','Phóng PE')}${FN(b+'tg_han_pe','Hàn PE')}${FN(b+'tg_rut_pe','Rút PE')}</div></fieldset>
   <fieldset><legend>Khoảng cách 2 bao</legend><div class="grid">${FN(b+'kc_2_bao','Khoảng cách 2 bao')}</div></fieldset>
-  <fieldset><legend>Nhiệt dao</legend><div class="grid">${FN(b+'nhiet_cat_bao','Cắt bao')}${FN(b+'nhiet_cat_chi','Cắt chỉ')}${FN(b+'nhiet_han_pe','Hàn PE')}</div></fieldset>
+  <fieldset><legend>Nhiệt dao (Nhiệt hàn PE có thể để trống)</legend><div class="grid">${FN(b+'nhiet_cat_bao','Cắt bao')}${FN(b+'nhiet_cat_chi','Cắt chỉ')}${FN(b+'nhiet_han_pe','Hàn PE')}</div></fieldset>
   ${nextBtn(4)}`;}
 
 function okCell(path,item,v){
@@ -819,7 +840,7 @@ const ACT={
   help:()=>helpModal(),
   newrep:()=>newRepModal(),
   open:b=>openReport(+b.dataset.id),
-  editme:()=>{const ms=S.config.machines;const m=modal(`<h3>Thông tin của tôi</h3><label class="f"><span>Họ và tên</span><input id="en" type="text" value="${esc(S.me.name)}"></label>
+  editme:()=>{const ms=S.config.machines;const m=modal(`<h3>Thông tin của tôi</h3><label class="f"><span>Họ và tên (C01)</span><input id="en" type="text" value="${esc(S.me.name)}"></label>
     <label class="f" style="margin-top:10px"><span>Máy cắt hay làm</span><select id="em">${ms.map(x=>`<option ${x===S.me.last_machine?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
     <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ego">Lưu</button></div>
     <p style="margin-top:14px"><a href="#" id="esl">Đăng nhập Quản lý ca / Admin</a></p>`);
@@ -906,8 +927,8 @@ async function staffHome(){
   staffShell(filt+'<div id="lst"><p class="mut">Đang tải…</p></div>',t);
   try{
     const r=await api('GET','/api/reports?'+q);
-    $('#lst').innerHTML=r.reports.length?`<table class="rt"><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Công nhân</th><th class="num">Số cái</th><th>SP</th><th>Trạng thái</th></tr></thead><tbody>${
-      r.reports.map(x=>`<tr class="clk" data-act="open" data-id="${x.id}"><td data-l="Ngày">${fd(x.report_date)}</td><td data-l="Ca">${esc(x.shift)}</td><td data-l="Máy"><b>${esc(x.machine)}</b></td><td data-l="Công nhân">${esc(x.worker_name)}</td><td class="num" data-l="Số cái">${fmtN(x.total)}</td><td data-l="Số SP">${x.n_products}</td><td data-l="Trạng thái">${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
+    $('#lst').innerHTML=r.reports.length?`<table class="rt"><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Người nhập (C01)</th><th class="num">Số cái</th><th>SP</th><th>Trạng thái</th></tr></thead><tbody>${
+      r.reports.map(x=>`<tr class="clk" data-act="open" data-id="${x.id}"><td data-l="Ngày">${fd(x.report_date)}</td><td data-l="Ca">${esc(x.shift)}</td><td data-l="Máy"><b>${esc(x.machine)}</b></td><td data-l="Người nhập">${esc(x.worker_name)}</td><td class="num" data-l="Số cái">${fmtN(x.total)}</td><td data-l="Số SP">${x.n_products}</td><td data-l="Trạng thái">${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
       :`<div class="note info">${t==='pending'?'Không có phiếu nào chờ duyệt 🎉':'Không có phiếu nào theo bộ lọc.'}</div>`;
     window._rf=setTimeout(()=>{if(S.view==='staff'&&(S.tab==='pending'||S.tab==='all'))staffHome();},60000);
   }catch(e){$('#lst').innerHTML=`<div class="note bad">${esc(e.message)}</div>`;}
@@ -915,7 +936,7 @@ async function staffHome(){
 function exportView(){
   const f=S.ef?S.ef:(S.ef=defFilters());
   staffShell(`<div class="card" style="max-width:720px"><h3>Xuất file Excel sản lượng cắt bao</h3>
-  <p class="mut small">Mỗi dòng = 1 sản phẩm cắt: Máy, Ngày, Ca, Mã ĐH, Mã SP, Số cái cắt được, Giờ bắt đầu (<b>hh:mm:ss</b>), Giờ kết thúc (<b>hh:mm:ss</b>), Thời gian dừng máy, Tốc độ cắt/may… Sheet 2 là chi tiết từng cuộn.</p>
+  <p class="mut small">Mỗi dòng = 1 sản phẩm cắt: Máy, Ngày, Ca, Mã ĐH, Mã SP, C01-C04, Số cái cắt được, Giờ bắt đầu, Giờ kết thúc, Thời gian dừng máy, Tốc độ… Sheet 2 là chi tiết từng cuộn.</p>
   <div class="grid g2" style="margin:10px 0">
   <label class="f"><span>Từ ngày</span><input type="date" id="xf" value="${f.from}"></label><label class="f"><span>Đến ngày</span><input type="date" id="xt" value="${f.to}"></label>
   <label class="f"><span>Ca</span><select id="xs"><option value="">Cả 2 ca</option>${S.config.shifts.map(s=>`<option value="${esc(s.code)}">${esc(s.name)} (${esc(s.code)})</option>`).join('')}</select></label>
@@ -938,8 +959,12 @@ async function doExport(){
       let ng=0;((p.qc&&p.qc.lans)?p.qc.lans:[]).forEach(l=>Object.values(defVal(l.v,{})).forEach(v=>{if(v==='ng')ng++;}));
       const nProd=(k,int=false)=>int?defVal(toInt(p[k]),''):(toNum(p[k])??defVal(p[k],''));
       rows1.push([
-        rep.machine,dt,rep.shift,defVal(p.ma_dh,''),defVal(p.ma_sp,''),tot,
-        fmtTimeSAP(p.bat_dau),fmtTimeSAP(p.ket_thuc),
+        rep.machine,dt,rep.shift,defVal(p.ma_dh,''),defVal(p.ma_sp,''),
+        defVal(p.c01_id,''),defVal(p.c01_name,''),
+        defVal(p.c02_id,''),defVal(p.c02_name,''),
+        defVal(p.c03_id,''),defVal(p.c03_name,''),
+        defVal(p.c04_id,''),defVal(p.c04_name,''),
+        tot,fmtTimeSAP(p.bat_dau),fmtTimeSAP(p.ket_thuc),
         nProd('dung_thay_cuon'),nProd('dung_doi_hang'),nProd('dung_may_hu'),nProd('dung_cho_hang'),nProd('dung_khac'),defVal(p.dung_khac_ly_do,''),
         toNum(p.toc_do_cat)??defVal(p.toc_do_cat,''),toNum(p.toc_do_may)??defVal(p.toc_do_may,''),
         rep.worker_name,defVal(STAT[rep.status],rep.status),defVal(rep.approved_by,''),ng
@@ -950,17 +975,17 @@ async function doExport(){
         const n=(k,int=false)=>int?defVal(toInt(ro[k]),''):(toNum(ro[k])??defVal(ro[k],''));
         rows2.push([
           rep.machine,dt,rep.shift,defVal(p.ma_dh,''),defVal(p.ma_sp,''),defVal(ro.ma_kh,''),defVal(ro.cuon_so_may_so,''),defVal(ro.ca_ngay_sx,''),n('kg_dau_cuon'),
-          defVal(ro.ma_cn_det,''),defVal(ro.ten_cn_det,''),defVal(ro.ma_pe,''),defVal(ro.cuon_pe,''),defVal(ro.ca_ngay_thoi,''),n('kho_bao'),n('dai_cat'),n('dl10'),n('so_cai',true),
+          defVal(ro.ma_pe,''),defVal(ro.cuon_pe,''),defVal(ro.ca_ngay_thoi,''),n('kho_bao'),n('dai_cat'),n('dl10'),n('so_cai',true),
           n('phe_co_dau'),n('phe_khong_dau',true),n('rau_bo',true),n('rau_dem',true),ro.ql_xn?'Có':'',rep.worker_name
         ]);
       });
     });
   });
-  const h1=['Máy','Ngày','Ca','Mã đơn hàng','Mã sản phẩm','Số cái cắt được','Giờ bắt đầu','Giờ kết thúc','Dừng: thay cuộn (phút)','Dừng: đổi hàng (phút)','Dừng: máy hư (phút)','Dừng: chờ hàng (phút)','Dừng: lý do khác (phút)','Lý do khác','Tốc độ cắt','Tốc độ may','Công nhân','Trạng thái phiếu','Quản lý duyệt','Số mục KT chất lượng KHÔNG đạt'];
-  const h2=['Máy','Ngày','Ca','Mã đơn hàng','Mã sản phẩm','Mã KH','Cuộn số / Máy số','Ca & ngày sản xuất','Số kg/mét đầu cuộn','Mã CN Dệt','Tên CN Dệt','Mã PE','Cuộn số / Máy thổi','Ca, ngày thổi','Khổ bao (cm)','Chiều dài cắt sau may (cm)','ĐL 10 cái đầu cuộn (g)','Số cái cắt được','Phế liệu có đánh dấu (kg)','Phế liệu không đánh dấu (cái)','Râu bỏ','Râu đếm','QL xác nhận cắt hàng loạt','Công nhân'];
+  const h1=['Máy','Ngày','Ca','Mã đơn hàng','Mã sản phẩm','Mã C01','Tên C01','Mã C02','Tên C02','Mã C03','Tên C03','Mã C04','Tên C04','Số cái cắt được','Giờ bắt đầu','Giờ kết thúc','Dừng: thay cuộn (phút)','Dừng: đổi hàng (phút)','Dừng: máy hư (phút)','Dừng: chờ hàng (phút)','Dừng: lý do khác (phút)','Lý do khác','Tốc độ cắt','Tốc độ may','Người nhập','Trạng thái phiếu','Quản lý duyệt','Số mục KT chất lượng KHÔNG đạt'];
+  const h2=['Máy','Ngày','Ca','Mã đơn hàng','Mã sản phẩm','Mã KH','Cuộn số / Máy số','Ca & ngày sản xuất','Số kg/mét đầu cuộn','Mã PE','Cuộn số / Máy thổi','Ca, ngày thổi','Khổ bao (cm)','Chiều dài cắt sau may (cm)','ĐL 10 cái đầu cuộn (g)','Số cái cắt được','Phế liệu có đánh dấu (kg)','Phế liệu không đánh dấu (cái)','Râu bỏ','Râu đếm','QL xác nhận cắt hàng loạt','Người nhập'];
   const blob=buildXlsxBlob([
-    {name:'Sản lượng cắt bao',headers:h1,rows:rows1,widths:[7,12,8,18,18,14,12,12,11,11,11,11,11,16,11,11,20,14,20,16]},
-    {name:'Chi tiết cuộn',headers:h2,rows:rows2,widths:[7,12,8,16,16,12,14,14,12,12,16,12,14,14,11,13,13,13,13,13,9,9,13,20]}
+    {name:'Sản lượng cắt bao',headers:h1,rows:rows1,widths:[7,12,8,18,18,10,16,10,16,10,16,10,16,14,12,12,11,11,11,11,11,16,11,11,16,14,20,16]},
+    {name:'Chi tiết cuộn',headers:h2,rows:rows2,widths:[7,12,8,16,16,12,14,14,12,12,14,14,11,13,13,13,13,13,9,9,13,16]}
   ]);
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`San_luong_cat_bao_${ymd(new Date()).replace(/-/g,'')}.xlsx`;
