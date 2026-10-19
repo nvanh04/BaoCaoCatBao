@@ -166,14 +166,19 @@ const pad=n=>String(n).padStart(2,'0');
 const nowStr = () => {
   const d = new Date();
   const vnDate = new Date(d.getTime() + 7 * 3600 * 1000);
-  return vnDate.toISOString().replace('T', ' ').slice(0, 19);
+  const yyyy = vnDate.getUTCFullYear();
+  const mm = pad(vnDate.getUTCMonth() + 1);
+  const dd = pad(vnDate.getUTCDate());
+  const hh = pad(vnDate.getUTCHours());
+  const min = pad(vnDate.getUTCMinutes());
+  const ss = pad(vnDate.getUTCSeconds());
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 };
 const nowHM = () => {
   const d = new Date();
   const vnDate = new Date(d.getTime() + 7 * 3600 * 1000);
   return pad(vnDate.getUTCHours()) + ':' + pad(vnDate.getUTCMinutes());
 };
-
 const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const fd=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(defVal(s,''));return m?`${m[3]}/${m[2]}/${m[1]}`:defVal(s,'');};
 const fmtTimeSAP=s=>{const v=String(defVal(s,'')).trim();if(!v)return '';return /^\d{2}:\d{2}$/.test(v)?v+':00':v;};
