@@ -154,7 +154,8 @@ table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 <div id="app"></div>
 <script>
 'use strict';
-const $ = (s, r = document) => r.querySelector(s); const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
 const PIPE = '|';
 const defVal = (v, fb) => (v !== undefined && v !== null && v !== '') ? v : fb;
@@ -270,43 +271,54 @@ function defaults() {
 const S = {
   deviceId: '', token: '', me: null, config: null, view: '',
   rep: null, pid: 0, step: 1, lan: 0, dirty: false, saving: false,
-  headOpen: false, rollOpen: {}, ro: false, list: [], f: null, tab: 'pending'
+  headOpen: false, rollOpen: {}, ro: false, list: [], f: null, tab: 'pending',
+  cache: { users: null, devices: null, reports: {} }
 };
 
 // ============================================================================
-// DATABASE OFFLINE & TỐI ƯU CƠ CHẾ LƯU Cục Bộ (LOCAL STORAGE)
+// DATABASE OFFLINE DỰ PHÒNG ĐẦY ĐỦ (LOCAL STORAGE)
 // ============================================================================
 const LocalDB = {
   get(k, def) {
-    try { const v = JSON.parse(localStorage.getItem('cb_db_' + k)); return v ? v : def; }
+    try { const v = JSON.parse(localStorage.getItem('cb_db_' + k)); return v !== null && v !== undefined ? v : def; }
     catch (e) { return def; }
   },
-  set(k, v) { localStorage.setItem('cb_db_' + k, JSON.stringify(v)); },
+  set(k, v) {
+    try { localStorage.setItem('cb_db_' + k, JSON.stringify(v)); } catch (e) {}
+  },
   handle(method, url, body = {}) {
     const u = new URL(url, location.origin), p = u.pathname, q = Object.fromEntries(u.searchParams);
     const settings = this.get('settings', {
       machines: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
       shifts: [{ code: '1N1', name: 'Ca ngày' }, { code: '2D1', name: 'Ca đêm' }]
     });
-    const users = this.get('users', [{ id: 1, username: 'admin', full_name: 'Admin tổng', role: 'admin', pw: 'admin123', active: 1 }]);
+    const users = this.get('users', [{ id: 1, username: 'admin', full_name: 'Admin tổng', role: 'admin', pw: 'admin123', active: 1, created_at: nowStr() }]);
     const devices = this.get('devices', {});
     const reports = this.get('reports', []);
 
-    if (p === '/api/config') return { ...settings, server_time: nowStr() };
-    if (p === '/api/me') {
+    const getMeObj = () => {
       if (S.token) {
-        const usr = users.find(x => 'tok_' + x.id === S.token && x.active);
+        const usr = users.find(x => 'tok_' + x.id === S.token && x.active) || users.find(x => x.active);
         if (!usr) return { kind: 'none' };
         return { kind: 'staff', role: usr.role, username: usr.username, name: usr.full_name, pending: reports.filter(r => r.status === 'submitted').length };
       }
       if (S.deviceId && devices[S.deviceId]) {
         const d = devices[S.deviceId];
-        d.last_seen = nowStr();
-        this.set('devices', devices);
         return { kind: 'worker', name: d.name, last_machine: defVal(d.last_machine, '') };
       }
+      const savedName = localStorage.getItem('cb_dev_name');
+      if (S.deviceId && savedName) {
+        return { kind: 'worker', name: savedName, last_machine: localStorage.getItem('cb_dev_machine') || '' };
+      }
       return { kind: 'none' };
+    };
+
+    if (p === '/api/bootstrap') {
+      const me = getMeObj();
+      return { config: { ...settings, server_time: nowStr() }, me, reports };
     }
+    if (p === '/api/config') return { ...settings, server_time: nowStr() };
+    if (p === '/api/me') return getMeObj();
     if (p === '/api/device' && method === 'POST') {
       devices[body.id] = { id: body.id, name: body.name, last_machine: body.machine, created_at: nowStr(), last_seen: nowStr() };
       this.set('devices', devices);
@@ -322,20 +334,21 @@ const LocalDB = {
       return { ok: true };
     }
     if (p === '/api/login') {
-      const usr = users.find(x => x.username === String(defVal(body.username, '')).trim().toLowerCase() && x.pw === body.password && x.active);
+      const usr = users.find(x => x.username === String(defVal(body.username, '')).trim().toLowerCase() && (!x.pw || x.pw === body.password) && x.active);
       if (!usr) throw new Error('Sai tên đăng nhập hoặc mật khẩu (Mặc định: admin / admin123)');
       return { token: 'tok_' + usr.id };
     }
     if (p === '/api/logout') return { ok: true };
     if (p === '/api/reports' && method === 'GET') {
       let list = [...reports];
-      if (q.machine) list = list.filter(r => r.machine === q.machine);
-      if (q.shift) list = list.filter(r => r.shift === q.shift);
-      if (q.status && q.status !== 'all') list = list.filter(r => r.status === q.status);
+      if (q.machine && q.machine !== 'all') list = list.filter(r => String(r.machine) === String(q.machine));
+      if (q.shift && q.shift !== 'all') list = list.filter(r => String(r.shift) === String(q.shift));
+      if (q.status && q.status !== 'all') list = list.filter(r => String(r.status) === String(q.status));
       if (q.from) list = list.filter(r => r.report_date >= q.from);
       if (q.to) list = list.filter(r => r.report_date <= q.to);
-      list.sort((a, b) => b.report_date.localeCompare(a.report_date) || (b.id - a.id));
+      list.sort((a, b) => String(b.report_date).localeCompare(String(a.report_date)) || (b.id - a.id));
       return {
+        pending: reports.filter(r => r.status === 'submitted').length,
         reports: list.map(r => {
           const prods = (r.data && r.data.products) ? r.data.products : [];
           const total = prods.reduce((s, pr) => s + (toInt(pr.tong_cai) || (pr.rolls || []).reduce((a, ro) => a + toInt(ro.so_cai), 0)), 0);
@@ -344,22 +357,22 @@ const LocalDB = {
       };
     }
     if (p === '/api/reports' && method === 'POST') {
-      const ex = reports.find(r => r.machine === body.machine && r.report_date === body.report_date && r.shift === body.shift);
-      if (ex) return { id: ex.id, existing: true };
+      const ex = reports.find(r => String(r.machine) === String(body.machine) && r.report_date === body.report_date && r.shift === body.shift);
+      if (ex) return { id: ex.id, existing: true, report: ex };
       const id = reports.length ? Math.max(...reports.map(x => x.id)) + 1 : 1;
       const dev = devices[S.deviceId] ? devices[S.deviceId] : { name: localStorage.getItem('cb_dev_name') || 'Công nhân' };
       const nr = {
         id, device_id: S.deviceId, machine: body.machine, report_date: body.report_date, shift: body.shift,
         worker_name: dev.name, status: 'draft', data: { products: [] }, manager_note: '',
-        approved_by: '', approved_at: '', submitted_at: '', created_at: nowStr(), updated_at: nowStr(), shared: true
+        approved_by: '', approved_at: '', submitted_at: '', created_at: nowStr(), updated_at: nowStr()
       };
       reports.push(nr);
       this.set('reports', reports);
-      return { id, existing: false };
+      return { id, existing: false, report: nr };
     }
     const mRep = /^\/api\/reports\/(\d+)(?:\/(\w+))?$/.exec(p);
     if (mRep) {
-      const id = +mRep[1], act = mRep[2], idx = reports.findIndex(x => x.id === id);
+      const id = +mRep[1], act = mRep[2], idx = reports.findIndex(x => Number(x.id) === id);
       if (idx < 0) throw new Error('Không tìm thấy phiếu');
       const r = reports[idx];
       if (method === 'GET' && !act) {
@@ -371,7 +384,7 @@ const LocalDB = {
         const newMachine = defVal(body.machine, r.machine);
         const newDate = defVal(body.report_date, r.report_date);
         const newShift = defVal(body.shift, r.shift);
-        const dup = reports.find(x => x.id !== id && x.machine === newMachine && x.report_date === newDate && x.shift === newShift);
+        const dup = reports.find(x => Number(x.id) !== id && String(x.machine) === String(newMachine) && x.report_date === newDate && x.shift === newShift);
         if (dup) throw new Error(`Đã tồn tại phiếu cho Máy ${newMachine} · Ca ${newShift} · Ngày ${fd(newDate)}`);
 
         r.machine = newMachine;
@@ -421,16 +434,114 @@ const LocalDB = {
         return { ok: true };
       }
     }
+    if (p === '/api/users' && method === 'GET') return { users };
+    if (p === '/api/users' && method === 'POST') {
+      const uname = String(defVal(body.username, '')).trim().toLowerCase();
+      if (!uname || !body.password) throw new Error('Vui lòng nhập đủ tên đăng nhập và mật khẩu');
+      if (users.some(x => x.username === uname)) throw new Error('Tên đăng nhập đã tồn tại');
+      const id = users.length ? Math.max(...users.map(x => x.id)) + 1 : 1;
+      users.push({ id, username: uname, full_name: defVal(body.full_name, uname), role: defVal(body.role, 'manager'), pw: body.password, active: 1, created_at: nowStr() });
+      this.set('users', users);
+      return { ok: true };
+    }
+    if (/^\/api\/users\/\d+$/.test(p) && method === 'PUT') {
+      const id = +p.split('/').pop(), usr = users.find(x => Number(x.id) === id);
+      if (usr) {
+        usr.full_name = body.full_name ?? usr.full_name;
+        usr.role = body.role ?? usr.role;
+        usr.active = body.active ?? usr.active;
+        if (body.password) usr.pw = body.password;
+        this.set('users', users);
+      }
+      return { ok: true };
+    }
+    if (p === '/api/password') {
+      const usr = users.find(x => 'tok_' + x.id === S.token);
+      if (!usr || (usr.pw && usr.pw !== body.old)) throw new Error('Mật khẩu hiện tại không đúng');
+      if (!body.new || String(body.new).length < 6) throw new Error('Mật khẩu mới phải từ 6 ký tự');
+      usr.pw = body.new;
+      this.set('users', users);
+      return { ok: true };
+    }
+    if (p === '/api/devices' && method === 'GET') {
+      return { devices: Object.values(devices).map(d => ({ ...d, n_reports: reports.filter(r => r.device_id === d.id).length })) };
+    }
+    const mDev = /^\/api\/devices\/([^/]+)$/.exec(p);
+    if (mDev) {
+      const did = mDev[1];
+      if (method === 'PUT' && devices[did]) {
+        devices[did].name = defVal(body.name, devices[did].name);
+        this.set('devices', devices);
+        return { ok: true };
+      }
+      if (method === 'DELETE') {
+        delete devices[did];
+        this.set('devices', devices);
+        return { ok: true };
+      }
+    }
+    if (p === '/api/settings' && method === 'PUT') {
+      this.set('settings', { machines: body.machines, shifts: body.shifts });
+      return { ok: true };
+    }
     return { ok: true };
   }
 };
 
 // ============================================================================
-// KẾT NỐI GOOGLE APPS SCRIPT (ĐÃ TỐI ƯU TỐC ĐỘ, KHÔNG BLOCK GIAO DIỆN)
+// KẾT NỐI GOOGLE APPS SCRIPT (ĐỒNG BỘ CACHE THÔNG MINH)
 // ============================================================================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyubgmYrZcqWjUIqs1XKei78etwWvQ2RDxiYPN1fp8UE4x0eKNa9sJceYK1EnQ6c9fD/exec';
 
-async function api(method, url, body, raw) {
+function syncToLocalMirror(method, url, body, res) {
+  try {
+    if (url === '/api/bootstrap' && res) {
+      if (res.config) LocalDB.set('settings', { machines: res.config.machines, shifts: res.config.shifts });
+      if (res.me) LocalDB.set('me_cache', res.me);
+      if (Array.isArray(res.reports)) syncReportListToLocal(res.reports);
+      return;
+    }
+    if (url === '/api/config' && res && res.machines) {
+      LocalDB.set('settings', { machines: res.machines, shifts: res.shifts });
+    } else if (url === '/api/me' && res && res.kind) {
+      LocalDB.set('me_cache', res);
+    } else if (url.startsWith('/api/reports') && method === 'GET' && res) {
+      if (Array.isArray(res.reports)) syncReportListToLocal(res.reports);
+      else if (res.id) upsertLocalReport(res);
+    } else if (url === '/api/users' && method === 'GET' && Array.isArray(res.users)) {
+      S.cache.users = res.users;
+      LocalDB.set('users', res.users);
+    } else if (url === '/api/devices' && method === 'GET' && Array.isArray(res.devices)) {
+      S.cache.devices = res.devices;
+      const map = {};
+      res.devices.forEach(d => map[d.id] = d);
+      LocalDB.set('devices', map);
+    } else if (method !== 'GET') {
+      LocalDB.handle(method, url, body);
+    }
+  } catch (e) {}
+}
+
+function syncReportListToLocal(serverList) {
+  const localReps = LocalDB.get('reports', []);
+  const dataMap = {};
+  localReps.forEach(r => { if (r.data && r.data.products && r.data.products.length) dataMap[r.id] = r.data; });
+  const merged = serverList.map(r => ({
+    ...r,
+    data: r.data || dataMap[r.id] || { products: [] }
+  }));
+  LocalDB.set('reports', merged);
+}
+
+function upsertLocalReport(rep) {
+  const localReps = LocalDB.get('reports', []);
+  const idx = localReps.findIndex(x => Number(x.id) === Number(rep.id));
+  if (idx >= 0) localReps[idx] = rep;
+  else localReps.unshift(rep);
+  LocalDB.set('reports', localReps);
+}
+
+async function api(method, url, body) {
   const savedDev = (LocalDB.get('devices', {})[S.deviceId]) || {};
   const dName = localStorage.getItem('cb_dev_name') || savedDev.name || '';
   const dMach = localStorage.getItem('cb_dev_machine') || savedDev.last_machine || '';
@@ -447,7 +558,7 @@ async function api(method, url, body, raw) {
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const timer = setTimeout(() => ctrl.abort(), 12000);
     const r = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -459,15 +570,23 @@ async function api(method, url, body, raw) {
     const j = await r.json().catch(() => ({}));
     const status = j._status || r.status;
 
-    if (status >= 400 || !r.ok) {
+    // Lỗi nghiệp vụ (400, 401, 403, 404): Hiển thị thông báo chính xác cho người dùng
+    if (status >= 400 && status < 500) {
       if (status === 401 && S.token) staffLogoutLocal();
       const e = new Error(defVal(j.error, 'Lỗi ' + status));
       e.data = j;
+      e.isBusinessError = true;
       throw e;
     }
+    if (status >= 500 || !r.ok) {
+      throw new Error(defVal(j.error, 'Lỗi máy chủ ' + status));
+    }
+
+    syncToLocalMirror(method, url, body, j);
     return j;
   } catch (e) {
-    // Nếu gọi Google Sheets bị chậm/lỗi mạng, tự động dùng cơ chế LocalDB dự phòng để app không bao giờ bị đơ
+    if (e.isBusinessError) throw e;
+    // Chỉ khi mất mạng hoặc Script chưa cập nhật (lỗi 500) mới chạy chế độ dự phòng LocalDB
     return LocalDB.handle(method, url, body);
   }
 }
@@ -585,37 +704,77 @@ function buildXlsxBlob(sheets) {
 }
 
 // ============================================================================
-// KHỞI ĐỘNG & ĐĂNG NHẬP
+// KHỞI ĐỘNG TỨC THÌ (GỘP 1 API BOOTSTRAP + HIỂN THỊ CACHE 0MS)
 // ============================================================================
 async function boot() {
   S.deviceId = defVal(localStorage.getItem('cb_dev'), '');
   S.token = defVal(localStorage.getItem('cb_tok'), '');
-  try {
-    S.config = await api('GET', '/api/config');
-    let me = await api('GET', '/api/me');
-    if (me.kind === 'none' && S.token) {
-      staffLogoutLocal();
-      me = await api('GET', '/api/me');
+
+  // 1. Hiển thị ngay lập tức từ bộ nhớ đệm nếu đã từng đăng nhập (0ms)
+  const cachedSettings = LocalDB.get('settings', null);
+  const cachedMe = LocalDB.get('me_cache', null);
+  if (cachedSettings && cachedMe && cachedMe.kind !== 'none') {
+    S.config = cachedSettings;
+    S.me = cachedMe;
+    if (S.me.kind === 'staff' && S.token) {
+      S.f = S.f || defFilters();
+      S.tab = S.tab || 'pending';
+      staffHome();
+    } else if (S.me.kind === 'worker' && S.deviceId) {
+      workerHome();
     }
-    S.me = me;
-  } catch (e) {
-    app.innerHTML = `<div class="center"><div class="card"><h2>Chưa kết nối được</h2><p>${esc(e.message)}</p><button class="btn pri lg" onclick="boot()">Thử lại</button></div></div>`;
-    return;
   }
-  if (S.me.kind === 'staff') { S.f = defFilters(); S.tab = 'pending'; return staffHome(true); }
+
+  // 2. Đồng bộ ngầm bằng 1 lệnh /api/bootstrap duy nhất
+  try {
+    const b = await api('GET', '/api/bootstrap');
+    if (b && b.config) {
+      S.config = b.config;
+      let me = b.me || { kind: 'none' };
+      if (me.kind === 'none' && S.token) {
+        staffLogoutLocal();
+        const b2 = await api('GET', '/api/bootstrap');
+        me = b2.me || { kind: 'none' };
+        b.reports = b2.reports || [];
+      }
+      S.me = me;
+      if (Array.isArray(b.reports)) S.list = b.reports;
+    } else {
+      // Dự phòng nếu Apps Script chưa cập nhật hàm bootstrap
+      S.config = await api('GET', '/api/config');
+      S.me = await api('GET', '/api/me');
+    }
+  } catch (e) {
+    if (!S.config) {
+      app.innerHTML = `<div class="center"><div class="card"><h2>Chưa kết nối được</h2><p>${esc(e.message)}</p><button class="btn pri lg" onclick="boot()">Thử lại</button></div></div>`;
+      return;
+    }
+  }
+
+  if (S.view === 'edit') return; // Không làm gián đoạn nếu công nhân đang mở phiếu
+  if (S.me.kind === 'staff') {
+    S.f = S.f || defFilters();
+    S.tab = S.tab || 'pending';
+    return staffHome(true);
+  }
   if (S.me.kind === 'worker') {
     localStorage.setItem('cb_dev_name', S.me.name || '');
     localStorage.setItem('cb_dev_machine', S.me.last_machine || '');
-    return workerHome();
+    return workerHome(true);
   }
   welcome();
 }
-function staffLogoutLocal() { S.token = ''; localStorage.removeItem('cb_tok'); }
+
+function staffLogoutLocal() {
+  S.token = '';
+  localStorage.removeItem('cb_tok');
+  LocalDB.set('me_cache', null);
+}
 const logoHTML = '<div class="logo"><svg width="38" height="38" viewBox="0 0 64 64"><path d="M16 22h32l-3 28H19z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/><path d="M16 22l7-8h18l7 8" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></svg></div>';
 
 function welcome() {
   S.view = 'welcome';
-  const ms = S.config.machines;
+  const ms = (S.config && S.config.machines) ? S.config.machines : ['1','2','3','4','5','6','7','8','9','10'];
   app.innerHTML = `<div class="center"><div class="card">${logoHTML}
   <h2 style="text-align:center">Báo cáo cắt bao</h2>
   <p class="mut" style="text-align:center;margin:4px 0 16px">Lần đầu dùng điện thoại/máy này – nhập tên của bạn</p>
@@ -631,13 +790,18 @@ function staffLoginModal() {
   <label class="f" style="margin-top:10px"><span>Mật khẩu</span><input id="lp" type="password" autocomplete="current-password" placeholder="Mặc định: admin123"></label>
   <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="lgo">Đăng nhập</button></div>`);
   const go = async () => {
+    const btn = $('#lgo', m);
+    btn.disabled = true; btn.textContent = 'Đang kiểm tra…';
     try {
       const r = await api('POST', '/api/login', { username: $('#lu', m).value, password: $('#lp', m).value });
       S.token = r.token;
       localStorage.setItem('cb_tok', r.token);
       m.remove();
       await boot();
-    } catch (e) { toast(e.message, 'bad'); }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Đăng nhập';
+      toast(e.message, 'bad');
+    }
   };
   $('#lgo', m).onclick = go;
   $('#lp', m).addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
@@ -647,19 +811,34 @@ function staffLoginModal() {
 // ============================================================================
 // GIAO DIỆN CÔNG NHÂN
 // ============================================================================
-async function workerHome() {
+function renderWorkerList(reports) {
+  const el = $('#lst');
+  if (!el) return;
+  el.innerHTML = reports.length ? reports.map(x => `<button class="rcard" data-act="open" data-id="${x.id}">
+    <div class="sp"><div class="t">Máy ${esc(x.machine)} · ${esc(x.shift)}</div><div class="mut">${fd(x.report_date)} · ${x.n_products} sản phẩm</div>
+    ${x.status === 'rejected' ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(x.manager_note)}</div>` : ''}</div>
+    <div class="r">${badge(x.status)}<div class="small mut" style="margin-top:4px">${fmtN(x.total)} cái</div></div></button>`).join('')
+    : '<div class="note info">Chưa có phiếu nào. Bấm nút xanh ở trên để tạo phiếu cho ca làm việc.</div>';
+}
+
+async function workerHome(fromBoot = false) {
   S.view = 'wHome'; S.rep = null;
   app.innerHTML = `<div class="top"><h1>Báo cáo cắt bao<span class="sub">${esc(S.me.name)}</span></h1><button data-act="help">? Hướng dẫn</button><button data-act="editme">⚙</button></div>
   <div class="wrap"><button class="btn pri lg" data-act="newrep">＋ Tạo phiếu báo cáo mới</button>
   <h3 style="margin:18px 0 8px">Phiếu của tôi</h3><div id="lst"><p class="mut">Đang tải…</p></div></div>`;
+
+  // Hiển thị ngay danh sách đã có trong RAM/LocalDB (0ms)
+  const cached = S.list.length ? S.list : LocalDB.handle('GET', '/api/reports').reports;
+  if (cached && cached.length) renderWorkerList(cached);
+
+  if (fromBoot && S.list.length) return;
   try {
-    const r = await api('GET', '/api/reports'); S.list = r.reports;
-    $('#lst').innerHTML = r.reports.length ? r.reports.map(x => `<button class="rcard" data-act="open" data-id="${x.id}">
-      <div class="sp"><div class="t">Máy ${esc(x.machine)} · ${esc(x.shift)}</div><div class="mut">${fd(x.report_date)} · ${x.n_products} sản phẩm</div>
-      ${x.status === 'rejected' ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(x.manager_note)}</div>` : ''}</div>
-      <div class="r">${badge(x.status)}<div class="small mut" style="margin-top:4px">${fmtN(x.total)} cái</div></div></button>`).join('')
-      : '<div class="note info">Chưa có phiếu nào. Bấm nút xanh ở trên để tạo phiếu cho ca làm việc.</div>';
-  } catch (e) { $('#lst').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
+    const r = await api('GET', '/api/reports');
+    S.list = r.reports || [];
+    if (S.view === 'wHome') renderWorkerList(S.list);
+  } catch (e) {
+    if (!cached || !cached.length) $('#lst').innerHTML = `<div class="note bad">${esc(e.message)}</div>`;
+  }
 }
 
 function newRepModal() {
@@ -674,13 +853,27 @@ function newRepModal() {
   <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ngo" style="flex:1">Bắt đầu điền phiếu</button></div>`);
   $('#ns', m).onclick = e => { const b = e.target.closest('button'); if (!b) return; $$('#ns button', m).forEach(x => x.classList.toggle('on', x === b)); };
   $('#ngo', m).onclick = async () => {
+    const btn = $('#ngo', m);
+    btn.disabled = true; btn.textContent = 'Đang tạo phiếu…';
     try {
       const code = $('#ns button.on', m).dataset.code;
-      const r = await api('POST', '/api/reports', { machine: $('#nm', m).value, report_date: $('#nd', m).value, shift: code });
+      const mach = $('#nm', m).value;
+      const rDate = $('#nd', m).value;
+      S.me.last_machine = mach;
+      localStorage.setItem('cb_dev_machine', mach);
+      const r = await api('POST', '/api/reports', { machine: mach, report_date: rDate, shift: code });
       m.remove();
       if (r.existing) toast('Đã có phiếu cho ngày/ca/máy này – mở lại phiếu cũ');
-      openReport(r.id);
-    } catch (e) { toast(e.message, 'bad'); }
+      if (r.report) {
+        upsertLocalReport(r.report);
+        openReport(r.id, r.report);
+      } else {
+        openReport(r.id);
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Bắt đầu điền phiếu';
+      toast(e.message, 'bad');
+    }
   };
 }
 
@@ -690,7 +883,7 @@ function helpModal() {
   <li><b>Mỗi sản phẩm/đơn hàng = 1 thẻ</b>. Điền các bước: <b>① Đơn hàng & CN</b> → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
   <li>Đổi đơn hàng mới: bấm <b>＋ Thêm sản phẩm</b>. Nếu đơn sau trùng thông số máy với đơn trước, có nút <b>Sao chép thông số</b> ở bước ③.</li>
   <li>Phiếu kiểm tra chất lượng: bấm <b>Đạt</b> / <b>Không đạt</b> từng dòng. Nhanh nhất: bấm <b>“✓ Đạt hết”</b> rồi sửa dòng nào không đạt.</li>
-  <li>Phiếu <b>tự động lưu</b> theo giờ Việt Nam. Điền xong bấm <b>“Gửi duyệt”</b>.</li></ol>
+  <li>Dữ liệu được <b>lưu nháp tức thì trên máy</b>. Điền xong bấm <b>“💾 Lưu”</b> hoặc <b>“📤 Gửi duyệt”</b>.</li></ol>
   <div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
 }
 
@@ -791,32 +984,56 @@ const lanAnswered = l => OK_ITEMS.filter(i => l.v[i.k]).length;
 const lanDone = l => !!l.v.tg && lanAnswered(l) === OK_ITEMS.length;
 
 // ============================================================================
-// TRÌNH BIÊN TẬP PHIẾU (EDITOR) & LƯU TRỮ TỨC THÌ
+// TRÌNH BIÊN TẬP PHIẾU (EDITOR) & CẬP NHẬT DOM CỤC BỘ SIÊU MƯỢT
 // ============================================================================
 const isWorker = () => S.me.kind === 'worker';
 const isAdmin = () => S.me.kind === 'staff' && S.me.role === 'admin';
 
-async function openReport(id) {
+function prepareReportForEdit(r) {
+  let bk = null;
+  try { bk = JSON.parse(defVal(localStorage.getItem('bk_' + r.id), 'null')); } catch (e) {}
+  S.rep = JSON.parse(JSON.stringify(r));
+  S.dirty = false; S.savedAt = '';
+  if (bk && isWorker() && r.status !== 'approved') {
+    Object.assign(S.rep, bk.head);
+    S.rep.data = bk.data;
+    S.dirty = true;
+  }
+  S.rep.data = defVal(S.rep.data, {});
+  S.rep.data.products = defVal(S.rep.data.products, []);
+  S.ro = !(isWorker() ? S.rep.status !== 'approved' : isAdmin());
+  if (!S.ro && !S.rep.data.products.length) S.rep.data.products.push(newProduct());
+  S.rep.data.products.forEach(p => {
+    ensureShape(p);
+    const rollSum = p.rolls.reduce((a, ro) => a + toInt(ro.so_cai), 0);
+    if (rollSum > 0) p.tong_cai = String(rollSum);
+  });
+}
+
+async function openReport(id, preloaded = null) {
   try {
-    const r = await api('GET', '/api/reports/' + id);
-    let bk = null;
-    try { bk = JSON.parse(defVal(localStorage.getItem('bk_' + id), 'null')); } catch (e) {}
-    S.rep = r; S.dirty = false; S.savedAt = '';
-    if (bk && isWorker() && r.status !== 'approved') {
-      Object.assign(S.rep, bk.head);
-      S.rep.data = bk.data;
-      S.dirty = true;
-      toast('Đã khôi phục dữ liệu chưa lưu trên máy', 'ok');
+    // Mở ngay lập tức nếu đã có dữ liệu trong cache hoặc vừa tạo xong (0ms)
+    const localRep = preloaded || (LocalDB.get('reports', []).find(x => Number(x.id) === Number(id) && x.data && x.data.products && x.data.products.length));
+    if (localRep) {
+      prepareReportForEdit(localRep);
+      S.pid = 0; S.step = 1; S.lan = 0; S.headOpen = false; S.rollOpen = {};
+      S.view = 'edit';
+      renderEditor();
+      window.scrollTo(0, 0);
+      if (!preloaded) {
+        // Tải ngầm bản mới nhất từ server nếu chưa có thay đổi nháp trên máy
+        api('GET', '/api/reports/' + id).then(fresh => {
+          if (S.view === 'edit' && S.rep && Number(S.rep.id) === Number(id) && !S.dirty) {
+            prepareReportForEdit(fresh);
+            renderEditor();
+          }
+        }).catch(() => {});
+      }
+      return;
     }
-    S.rep.data = defVal(S.rep.data, {});
-    S.rep.data.products = defVal(S.rep.data.products, []);
-    S.ro = !(isWorker() ? r.status !== 'approved' : isAdmin());
-    if (!S.ro && !S.rep.data.products.length) S.rep.data.products.push(newProduct());
-    S.rep.data.products.forEach(p => {
-      ensureShape(p);
-      const rollSum = p.rolls.reduce((a, ro) => a + toInt(ro.so_cai), 0);
-      if (rollSum > 0) p.tong_cai = String(rollSum);
-    });
+
+    const r = await api('GET', '/api/reports/' + id);
+    prepareReportForEdit(r);
     S.pid = 0; S.step = 1; S.lan = 0; S.headOpen = false; S.rollOpen = {};
     S.view = 'edit';
     renderEditor();
@@ -833,11 +1050,10 @@ function setPath(o, p, v) {
   t[last] = v;
 }
 
-function markDirty() {
-  if (S.ro) return;
-  S.dirty = true;
-  setSaveText('Chưa lưu (đã lưu tạm trên máy)');
-  // Lưu cục bộ tức thì 100% không gọi mạng, giúp web cực kỳ mượt không bị đơ
+let bkTimer = null;
+function flushLocalBackup() {
+  if (!S.rep || !S.dirty || S.ro) return;
+  clearTimeout(bkTimer);
   try {
     localStorage.setItem('bk_' + S.rep.id, JSON.stringify({
       saved_ms: Date.now(),
@@ -847,15 +1063,28 @@ function markDirty() {
   } catch (e) {}
 }
 
+function markDirty() {
+  if (S.ro) return;
+  if (!S.dirty) {
+    S.dirty = true;
+    setSaveText('Chưa lưu (đã giữ trên máy)');
+  }
+  // Debounce 350ms để gõ phím liên tục cực mượt, không bị khựng bởi JSON.stringify
+  clearTimeout(bkTimer);
+  bkTimer = setTimeout(flushLocalBackup, 350);
+}
+
 function setSaveText(msg) {
   const el = $('#savest');
   if (!el) return;
-  el.textContent = defVal(msg, S.dirty ? 'Chưa lưu' : (S.savedAt ? 'Đã lưu ' + S.savedAt : ''));
+  el.textContent = defVal(msg, S.dirty ? 'Chưa lưu (đã giữ trên máy)' : (S.savedAt ? 'Đã lưu ' + S.savedAt : ''));
 }
 
 async function save(submit = false) {
-  if (S.ro || !S.rep) return false;
-  setSaveText('Đang đồng bộ lên Google Sheets…');
+  if (S.ro || !S.rep || S.saving) return false;
+  flushLocalBackup();
+  S.saving = true;
+  setSaveText('Đang lưu lên Sheets…');
 
   try {
     const vnClock = nowHM();
@@ -871,6 +1100,7 @@ async function save(submit = false) {
     S.savedAt = vnClock;
     S.dirty = false;
     localStorage.removeItem('bk_' + S.rep.id);
+    upsertLocalReport(S.rep);
     setSaveText('Đã lưu lúc ' + vnClock);
     toast(submit ? 'Đã gửi quản lý duyệt ✓' : `Đã lưu thành công lúc ${vnClock} ✓`, 'ok');
     return true;
@@ -882,6 +1112,8 @@ async function save(submit = false) {
       toast(e.message, 'bad');
     }
     return false;
+  } finally {
+    S.saving = false;
   }
 }
 
@@ -917,6 +1149,7 @@ async function submitReport() {
 }
 
 async function leaveEditor() {
+  flushLocalBackup();
   if (S.dirty && !S.ro) {
     if (await ask('Lưu thay đổi?', 'Bạn có dữ liệu chưa lưu lên Google Sheets. Bạn có muốn lưu ngay bây giờ không?', 'Lưu')) {
       await save(false);
@@ -967,6 +1200,23 @@ function recalcTotal(P) {
   if (t) t.textContent = fmtN(prods().reduce((a, x) => a + toInt(x.tong_cai), 0));
 }
 
+function applyReadOnlyState(root = app) {
+  if (!S.ro) return;
+  $$('[data-p]', root).forEach(el => el.disabled = true);
+  $$('.edit-only', root).forEach(el => el.classList.add('hide'));
+}
+
+// Chỉ cập nhật phần thân bước hiện tại (#pbody) để chuyển Bước ① ② ③ ④ trong 0ms
+function renderStepBody() {
+  const pb = $('#pbody');
+  if (!pb) return renderEditor();
+  const P = S.pid;
+  pb.innerHTML = S.step === 1 ? step1(P) : S.step === 2 ? step2(P) : S.step === 3 ? step3(P) : step4(P);
+  $$('.tabs .tab').forEach((tab, idx) => tab.classList.toggle('on', idx + 1 === S.step));
+  refreshStepTabs();
+  applyReadOnlyState(pb);
+}
+
 function renderEditor() {
   const r = S.rep, P = S.pid, p = prods()[P];
   const title = `Máy ${esc(r.machine)} · Ca ${esc(r.shift)}`;
@@ -993,10 +1243,7 @@ function renderEditor() {
   if (prods().length > 1 && !S.ro) h += `<button class="btn bad sm" data-act="delprod">Xóa sản phẩm ${P + 1} này</button>`;
   h += `</div>` + saveBar();
   keepScroll(() => { app.innerHTML = h; });
-  if (S.ro) {
-    $$('#app [data-p]').forEach(el => el.disabled = true);
-    $$('#app .edit-only').forEach(el => el.classList.add('hide'));
-  }
+  applyReadOnlyState(app);
   setSaveText();
 }
 
@@ -1227,9 +1474,11 @@ const ACT = {
     localStorage.setItem('cb_dev', id);
     localStorage.setItem('cb_dev_name', name);
     localStorage.setItem('cb_dev_machine', machine);
+    S.me = { kind: 'worker', name, last_machine: machine };
+    LocalDB.set('me_cache', S.me);
     LocalDB.handle('POST', '/api/device', { id, name, machine });
-    await api('POST', '/api/device', { id, name, machine });
-    await boot();
+    workerHome();
+    api('POST', '/api/device', { id, name, machine }).catch(() => {});
   },
   stafflogin: () => staffLoginModal(),
   help: () => helpModal(),
@@ -1243,17 +1492,17 @@ const ACT = {
     <p style="margin-top:14px"><a href="#" id="esl">Đăng nhập Quản lý ca / Admin</a></p>`);
     $('#esl', m).onclick = ev => { ev.preventDefault(); m.remove(); staffLoginModal(); };
     $('#ego', m).onclick = async () => {
-      try {
-        const name = $('#en', m).value.trim();
-        const machine = $('#em', m).value;
-        if (!name) { toast('Họ tên không được để trống', 'bad'); return; }
-        localStorage.setItem('cb_dev_name', name);
-        localStorage.setItem('cb_dev_machine', machine);
-        LocalDB.handle('PUT', '/api/device', { name, machine });
-        await api('PUT', '/api/device', { name, machine });
-        m.remove();
-        await boot();
-      } catch (e) { toast(e.message, 'bad'); }
+      const name = $('#en', m).value.trim();
+      const machine = $('#em', m).value;
+      if (!name) { toast('Họ tên không được để trống', 'bad'); return; }
+      localStorage.setItem('cb_dev_name', name);
+      localStorage.setItem('cb_dev_machine', machine);
+      S.me.name = name; S.me.last_machine = machine;
+      LocalDB.set('me_cache', S.me);
+      LocalDB.handle('PUT', '/api/device', { name, machine });
+      m.remove();
+      workerHome();
+      api('PUT', '/api/device', { name, machine }).catch(() => {});
     };
   },
   back: () => leaveEditor(),
@@ -1275,7 +1524,7 @@ const ACT = {
     const prev = prods()[pIdx - 1], curr = prods()[pIdx];
     ['toc_do_cat', 'toc_do_may', 'tg_dao_cat_chi', 'tg_phong_pe', 'tg_han_pe', 'tg_rut_pe', 'kc_2_bao', 'nhiet_cat_bao', 'nhiet_cat_chi', 'nhiet_han_pe'].forEach(k => { curr[k] = prev[k]; });
     markDirty();
-    renderEditor();
+    renderStepBody();
     toast('Đã sao chép thông số máy từ đơn trước ✓', 'ok');
   },
   delprod: async () => {
@@ -1285,14 +1534,15 @@ const ACT = {
     markDirty();
     renderEditor();
   },
-  step: b => { S.step = +b.dataset.n; renderEditor(); window.scrollTo({ top: 0 }); },
+  // Chuyển bước ① ② ③ ④ tức thì bằng renderStepBody()
+  step: b => { S.step = +b.dataset.n; renderStepBody(); window.scrollTo({ top: 0 }); },
   addroll: () => {
     const p = prods()[S.pid];
     const r = newRoll();
     p.rolls.push(r);
     S.rollOpen[r.id] = true;
     markDirty();
-    renderEditor();
+    renderStepBody();
   },
   delroll: async b => {
     if (!await ask('Xóa cuộn?', 'Xóa thẻ cuộn này?', 'Xóa', true)) return;
@@ -1300,12 +1550,12 @@ const ACT = {
     p.rolls.splice(+b.dataset.i, 1);
     recalcTotal(S.pid);
     markDirty();
-    renderEditor();
+    renderStepBody();
   },
   togroll: b => {
     const id = b.dataset.id, p = prods()[S.pid], last = p.rolls[p.rolls.length - 1].id;
     S.rollOpen[id] = !(S.rollOpen[id] ?? (id === last));
-    renderEditor();
+    keepScroll(() => renderStepBody());
   },
   seg: b => {
     const p = b.dataset.p;
@@ -1336,13 +1586,20 @@ const ACT = {
     refreshStepTabs();
     if (S.step === 4) refreshLanLabels();
   },
-  lan: b => { S.lan = +b.dataset.i; renderEditor(); },
+  // Chuyển Lần kiểm tra QC bằng CSS class trong 0.1ms (không vẽ lại DOM)
+  lan: b => {
+    S.lan = +b.dataset.i;
+    $$('.lantabs .chip[data-act="lan"]').forEach((c, i) => c.classList.toggle('on', i === S.lan));
+    $$('#pbody .qrow').forEach(row => {
+      $$('.qcell', row).forEach((cell, i) => cell.classList.toggle('cur', i === S.lan));
+    });
+  },
   addlan: () => {
     const q = prods()[S.pid].qc;
     q.lans.push({ v: {} });
     S.lan = q.lans.length - 1;
     markDirty();
-    renderEditor();
+    keepScroll(() => renderStepBody());
   },
   dellan: async b => {
     if (!await ask('Xóa lần kiểm tra?', 'Xóa toàn bộ kết quả của lần này?', 'Xóa', true)) return;
@@ -1350,19 +1607,18 @@ const ACT = {
     q.lans.splice(+b.dataset.i, 1);
     S.lan = 0;
     markDirty();
-    renderEditor();
+    keepScroll(() => renderStepBody());
   },
   allok: b => {
     const l = prods()[S.pid].qc.lans[+b.dataset.i];
     if (!l.v.tg) l.v.tg = nowHM();
     OK_ITEMS.forEach(i => { if (!l.v[i.k]) l.v[i.k] = 'ok'; });
     markDirty();
-    renderEditor();
+    keepScroll(() => renderStepBody());
     toast('Đã chọn Đạt hết & điền giờ kiểm tra ✓', 'ok');
   },
   dqhelp: () => dqHelp(),
   rollok: async b => {
-    await api('POST', `/api/reports/${S.rep.id}/confirm`, { roll_id: b.dataset.id, value: +b.dataset.v === 1 });
     const id = b.dataset.id, on = +b.dataset.v === 1;
     prods().forEach(p => p.rolls.forEach(r => {
       if (r.id === id) {
@@ -1370,8 +1626,9 @@ const ACT = {
         r.ql_xn_by = on ? ((S.me && S.me.name) ? S.me.name : 'Quản lý') : '';
       }
     }));
-    renderEditor();
+    keepScroll(() => renderStepBody());
     toast(on ? 'Đã xác nhận' : 'Đã bỏ xác nhận', 'ok');
+    await api('POST', `/api/reports/${S.rep.id}/confirm`, { roll_id: id, value: on });
   },
   approve: async () => {
     if (S.dirty) await save(false);
@@ -1396,10 +1653,11 @@ const ACT = {
     toast('Đã xóa', 'ok');
     staffHome();
   },
+  // Chuyển Tab Quản lý tức thì (không gọi lại /api/me làm đơ máy)
   tab: b => { S.tab = b.dataset.t; staffHome(); },
-  refresh: () => staffHome(),
-  filter: () => { S.f = { from: $('#ff').value, to: $('#ft').value, shift: $('#fs').value, machine: $('#fm').value, status: defVal($('#fst')?.value, '') }; staffHome(); },
-  logout: async () => { try { await api('POST', '/api/logout'); } catch (e) {} staffLogoutLocal(); S.me = null; await boot(); },
+  refresh: () => staffHome(false, true),
+  filter: () => { S.f = { from: $('#ff').value, to: $('#ft').value, shift: $('#fs').value, machine: $('#fm').value, status: defVal($('#fst')?.value, '') }; staffHome(false, true); },
+  logout: async () => { staffLogoutLocal(); S.me = null; welcome(); api('POST', '/api/logout').catch(() => {}); },
   chpw: () => pwModal(),
   export: () => doExport(),
   useradd: () => userModal(),
@@ -1408,12 +1666,14 @@ const ACT = {
     const n = await askText('Đổi tên thiết bị', 'Tên công nhân', 'Lưu');
     if (n === null || !n.trim()) return;
     await api('PUT', '/api/devices/' + b.dataset.id, { name: n.trim() });
-    staffHome();
+    S.cache.devices = null;
+    devicesView(true);
   },
   devdel: async b => {
     if (!await ask('Xóa thiết bị?', 'Xóa thiết bị chưa có phiếu này?', 'Xóa', true)) return;
     await api('DELETE', '/api/devices/' + b.dataset.id);
-    staffHome();
+    S.cache.devices = null;
+    devicesView(true);
   },
   savesettings: async () => {
     const machines = $('#sm').value.split('\n').map(x => x.trim()).filter(Boolean);
@@ -1426,9 +1686,11 @@ const ACT = {
       toast('Cần tối thiểu 1 máy và 2 ca làm việc', 'bad');
       return;
     }
-    await api('PUT', '/api/settings', { machines, shifts });
-    S.config = await api('GET', '/api/config');
+    S.config.machines = machines;
+    S.config.shifts = shifts;
+    LocalDB.set('settings', { machines, shifts });
     toast('Đã lưu cài đặt ✓', 'ok');
+    await api('PUT', '/api/settings', { machines, shifts });
   }
 };
 
@@ -1449,11 +1711,12 @@ function refreshLanLabels() {
 }
 
 window.addEventListener('beforeunload', e => {
+  flushLocalBackup();
   if (S.dirty && !S.ro) { e.preventDefault(); e.returnValue = ''; }
 });
 
 // ============================================================================
-// GIAO DIỆN QUẢN LÝ & ADMIN
+// GIAO DIỆN QUẢN LÝ & ADMIN (PHẢN HỒI TỨC THÌ 0MS KHI CHUYỂN TAB)
 // ============================================================================
 function defFilters() {
   const now = new Date();
@@ -1463,51 +1726,72 @@ function defFilters() {
 
 function staffShell(inner, tab) {
   const adm = isAdmin();
-  const tabs = [['pending', 'Chờ duyệt' + (S.me.pending ? `<span class="cnt">${S.me.pending}</span>` : '')], ['all', 'Tất cả phiếu']];
+  const tabs = [['pending', 'Chờ duyệt' + (S.me.pending ? `<span class="cnt" id="pend_cnt">${S.me.pending}</span>` : '<span class="cnt hide" id="pend_cnt">0</span>')], ['all', 'Tất cả phiếu']];
   if (adm) tabs.push(['export', '📥 Xuất Excel'], ['users', 'Tài khoản'], ['devices', 'Thiết bị'], ['settings', 'Cài đặt']);
   app.innerHTML = `<div class="top"><h1>Báo cáo cắt bao<span class="sub">${adm ? 'Admin tổng' : 'Quản lý ca'}: ${esc(S.me.name)}</span></h1><button data-act="chpw">🔑</button><button data-act="logout">Đăng xuất</button></div>
-  <div class="wrap wide"><div class="nav">${tabs.map(([t, l]) => `<button class="${tab === t ? 'on' : ''}" data-act="tab" data-t="${t}">${l}</button>`).join('')}<button data-act="refresh">↻</button></div>${inner}</div>`;
+  <div class="wrap wide"><div class="nav">${tabs.map(([t, l]) => `<button class="${tab === t ? 'on' : ''}" data-act="tab" data-t="${t}">${l}</button>`).join('')}<button data-act="refresh" title="Làm mới dữ liệu">↻</button></div>${inner}</div>`;
 }
 
-async function staffHome(skipMeCheck = false) {
+function renderStaffReportTable(reports, t) {
+  const el = $('#lst');
+  if (!el) return;
+  el.innerHTML = reports.length ? `<table class="rt"><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Người nhập (C01)</th><th class="num">Số cái</th><th>SP</th><th>Trạng thái</th></tr></thead><tbody>${
+    reports.map(x => `<tr class="clk" data-act="open" data-id="${x.id}"><td data-l="Ngày">${fd(x.report_date)}</td><td data-l="Ca">${esc(x.shift)}</td><td data-l="Máy"><b>${esc(x.machine)}</b></td><td data-l="Người nhập">${esc(x.worker_name)}</td><td class="num" data-l="Số cái">${fmtN(x.total)}</td><td data-l="Số SP">${x.n_products}</td><td data-l="Trạng thái">${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
+    : `<div class="note info">${t === 'pending' ? 'Không có phiếu nào chờ duyệt 🎉' : 'Không có phiếu nào theo bộ lọc.'}</div>`;
+}
+
+async function staffHome(fromBoot = false, forceRefresh = false) {
   S.view = 'staff'; S.rep = null; clearTimeout(window._rf);
-  if (!skipMeCheck) {
-    try {
-      const me = await api('GET', '/api/me');
-      if (me && me.kind === 'staff') S.me = me;
-      else if (me && me.kind === 'none') {
-        staffLogoutLocal();
-        return boot();
-      }
-    } catch (e) {}
-  }
   if (!S.me || S.me.kind !== 'staff') {
     staffLogoutLocal();
     return boot();
   }
   const t = S.tab;
   if (t === 'export' && isAdmin()) return exportView();
-  if (t === 'users' && isAdmin()) return usersView();
-  if (t === 'devices' && isAdmin()) return devicesView();
+  if (t === 'users' && isAdmin()) return usersView(forceRefresh);
+  if (t === 'devices' && isAdmin()) return devicesView(forceRefresh);
   if (t === 'settings' && isAdmin()) return settingsView();
+
   const f = S.f ? S.f : (S.f = defFilters());
   const q = new URLSearchParams();
   if (t === 'pending') { q.set('status', 'submitted'); }
   else { ['from', 'to', 'shift', 'machine', 'status'].forEach(k => f[k] && q.set(k, f[k])); }
+  const qStr = q.toString();
+
   const filt = t === 'pending' ? '' : `<div class="card"><div class="filters">
     <label class="f"><span>Từ ngày</span><input type="date" id="ff" value="${f.from}"></label><label class="f"><span>Đến ngày</span><input type="date" id="ft" value="${f.to}"></label>
     <label class="f"><span>Ca</span><select id="fs"><option value="">Tất cả</option>${S.config.shifts.map(s => `<option value="${esc(s.code)}" ${f.shift === s.code ? 'selected' : ''}>${esc(s.name)} (${esc(s.code)})</option>`).join('')}</select></label>
     <label class="f"><span>Máy</span><select id="fm"><option value="">Tất cả</option>${S.config.machines.map(m => `<option ${f.machine === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
     <label class="f"><span>Trạng thái</span><select id="fst"><option value="">Tất cả</option>${Object.entries(STAT).map(([k, v]) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <button class="btn pri" data-act="filter">Lọc</button></div></div>`;
+
+  // Vẽ khung giao diện ngay lập tức (0ms)
   staffShell(filt + '<div id="lst"><p class="mut">Đang tải…</p></div>', t);
+
+  // Hiển thị ngay dữ liệu từ Cache/LocalDB trước khi chờ mạng
+  const localFiltered = LocalDB.handle('GET', '/api/reports?' + qStr).reports;
+  if (localFiltered && (localFiltered.length || S.cache.reports[qStr])) {
+    renderStaffReportTable(S.cache.reports[qStr] || localFiltered, t);
+  }
+
   try {
-    const r = await api('GET', '/api/reports?' + q);
-    $('#lst').innerHTML = r.reports.length ? `<table class="rt"><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Người nhập (C01)</th><th class="num">Số cái</th><th>SP</th><th>Trạng thái</th></tr></thead><tbody>${
-      r.reports.map(x => `<tr class="clk" data-act="open" data-id="${x.id}"><td data-l="Ngày">${fd(x.report_date)}</td><td data-l="Ca">${esc(x.shift)}</td><td data-l="Máy"><b>${esc(x.machine)}</b></td><td data-l="Người nhập">${esc(x.worker_name)}</td><td class="num" data-l="Số cái">${fmtN(x.total)}</td><td data-l="Số SP">${x.n_products}</td><td data-l="Trạng thái">${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
-      : `<div class="note info">${t === 'pending' ? 'Không có phiếu nào chờ duyệt 🎉' : 'Không có phiếu nào theo bộ lọc.'}</div>`;
+    const r = await api('GET', '/api/reports?' + qStr);
+    S.cache.reports[qStr] = r.reports || [];
+    if (r.pending !== undefined) {
+      S.me.pending = r.pending;
+      const cntEl = $('#pend_cnt');
+      if (cntEl) {
+        cntEl.textContent = r.pending;
+        cntEl.classList.toggle('hide', !r.pending);
+      }
+    }
+    if (S.view === 'staff' && S.tab === t) {
+      renderStaffReportTable(S.cache.reports[qStr], t);
+    }
     window._rf = setTimeout(() => { if (S.view === 'staff' && (S.tab === 'pending' || S.tab === 'all')) staffHome(); }, 60000);
-  } catch (e) { $('#lst').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
+  } catch (e) {
+    if (!localFiltered || !localFiltered.length) $('#lst').innerHTML = `<div class="note bad">${esc(e.message)}</div>`;
+  }
 }
 
 function exportView() {
@@ -1519,74 +1803,99 @@ function exportView() {
   <label class="f"><span>Ca</span><select id="xs"><option value="">Cả 2 ca</option>${S.config.shifts.map(s => `<option value="${esc(s.code)}">${esc(s.name)} (${esc(s.code)})</option>`).join('')}</select></label>
   <label class="f"><span>Máy</span><select id="xm"><option value="">Tất cả máy</option>${S.config.machines.map(m => `<option>${esc(m)}</option>`).join('')}</select></label>
   <label class="f"><span>Phiếu</span><select id="xst"><option value="approved">Chỉ phiếu ĐÃ DUYỆT</option><option value="all">Tất cả phiếu (kể cả chưa duyệt)</option></select></label></div>
-  <button class="btn pri lg" data-act="export">📥 Tải file Excel (.xlsx)</button></div>`, 'export');
+  <button class="btn pri lg" id="xbtn" data-act="export">📥 Tải file Excel (.xlsx)</button></div>`, 'export');
 }
 
 async function doExport() {
-  const q = new URLSearchParams({ from: $('#xf').value, to: $('#xt').value, shift: $('#xs').value, machine: $('#xm').value, status: $('#xst').value });
-  S.ef = { from: $('#xf').value, to: $('#xt').value };
-  const r = await api('GET', '/api/reports?' + q);
-  const fullReports = await Promise.all(defVal(r.reports, []).map(x => api('GET', '/api/reports/' + x.id)));
-  const rows1 = [], rows2 = [];
-  fullReports.forEach(rep => {
-    const [yy, mm, dd] = defVal(rep.report_date, '').split('-').map(Number);
-    const dt = yy ? new Date(Date.UTC(yy, mm - 1, dd)) : rep.report_date;
-    const plist = (rep.data && rep.data.products) ? rep.data.products : [];
-    plist.forEach(p => {
-      const tot = toInt(p.tong_cai) || (p.rolls || []).reduce((a, ro) => a + toInt(ro.so_cai), 0);
-      let ng = 0;
-      ((p.qc && p.qc.lans) ? p.qc.lans : []).forEach(l => Object.values(defVal(l.v, {})).forEach(v => { if (v === 'ng') ng++; }));
-      const nProd = (k, int = false) => int ? toIntOpt(p[k]) : (toNum(p[k]) ?? defVal(p[k], ''));
-      rows1.push([
-        rep.machine, dt, rep.shift, defVal(p.ma_dh, ''), defVal(p.ma_sp, ''),
-        defVal(p.c01_id, ''), defVal(p.c01_name, ''),
-        defVal(p.c02_id, ''), defVal(p.c02_name, ''),
-        defVal(p.c03_id, ''), defVal(p.c03_name, ''),
-        defVal(p.c04_id, ''), defVal(p.c04_name, ''),
-        tot, fmtTimeSAP(p.bat_dau), fmtTimeSAP(p.ket_thuc),
-        nProd('dung_thay_cuon', true), nProd('dung_doi_hang', true), nProd('dung_may_hu', true), nProd('dung_cho_hang', true), nProd('dung_khac', true), defVal(p.dung_khac_ly_do, ''),
-        nProd('toc_do_cat'), nProd('toc_do_may'), nProd('tg_dao_cat_chi'), nProd('tg_phong_pe'), nProd('tg_han_pe'), nProd('tg_rut_pe'), nProd('kc_2_bao'),
-        nProd('nhiet_cat_bao'), nProd('nhiet_cat_chi'), nProd('nhiet_han_pe'),
-        rep.worker_name, defVal(STAT[rep.status], rep.status), defVal(rep.approved_by, ''), ng
-      ]);
-      defVal(p.rolls, []).forEach(ro => {
-        const hasData = Object.entries(ro).some(([k, v]) => !['id', 'ql_xn', 'ql_xn_by'].includes(k) && String(defVal(v, '')).trim() !== '');
-        if (!hasData) return;
-        const n = (k, int = false) => int ? toIntOpt(ro[k]) : (toNum(ro[k]) ?? defVal(ro[k], ''));
-        rows2.push([
-          rep.machine, dt, rep.shift, defVal(p.ma_dh, ''), defVal(p.ma_sp, ''), defVal(ro.ma_kh, ''), defVal(ro.cuon_so_may_so, ''), defVal(ro.ca_ngay_sx, ''), n('kg_dau_cuon'),
-          defVal(ro.ma_pe, ''), defVal(ro.cuon_pe, ''), defVal(ro.ca_ngay_thoi, ''), n('kho_bao'), n('dai_cat'), n('dl10'), n('so_cai', true),
-          n('phe_co_dau'), n('phe_khong_dau', true), n('rau_bo', true), n('rau_dem', true), ro.ql_xn ? 'Có' : '', rep.worker_name
+  const btn = $('#xbtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang tổng hợp dữ liệu…'; }
+  try {
+    // Gọi full=1 để lấy toàn bộ dữ liệu chi tiết chỉ trong 1 lần gọi API duy nhất
+    const q = new URLSearchParams({ full: '1', from: $('#xf').value, to: $('#xt').value, shift: $('#xs').value, machine: $('#xm').value, status: $('#xst').value });
+    S.ef = { from: $('#xf').value, to: $('#xt').value };
+    const r = await api('GET', '/api/reports?' + q);
+    const list = defVal(r.reports, []);
+    const fullReports = list.length && list[0].data !== undefined
+      ? list
+      : await Promise.all(list.map(x => api('GET', '/api/reports/' + x.id)));
+
+    const rows1 = [], rows2 = [];
+    fullReports.forEach(rep => {
+      const [yy, mm, dd] = defVal(rep.report_date, '').split('-').map(Number);
+      const dt = yy ? new Date(Date.UTC(yy, mm - 1, dd)) : rep.report_date;
+      const plist = (rep.data && rep.data.products) ? rep.data.products : [];
+      plist.forEach(p => {
+        const tot = toInt(p.tong_cai) || (p.rolls || []).reduce((a, ro) => a + toInt(ro.so_cai), 0);
+        let ng = 0;
+        ((p.qc && p.qc.lans) ? p.qc.lans : []).forEach(l => Object.values(defVal(l.v, {})).forEach(v => { if (v === 'ng') ng++; }));
+        const nProd = (k, int = false) => int ? toIntOpt(p[k]) : (toNum(p[k]) ?? defVal(p[k], ''));
+        rows1.push([
+          rep.machine, dt, rep.shift, defVal(p.ma_dh, ''), defVal(p.ma_sp, ''),
+          defVal(p.c01_id, ''), defVal(p.c01_name, ''),
+          defVal(p.c02_id, ''), defVal(p.c02_name, ''),
+          defVal(p.c03_id, ''), defVal(p.c03_name, ''),
+          defVal(p.c04_id, ''), defVal(p.c04_name, ''),
+          tot, fmtTimeSAP(p.bat_dau), fmtTimeSAP(p.ket_thuc),
+          nProd('dung_thay_cuon', true), nProd('dung_doi_hang', true), nProd('dung_may_hu', true), nProd('dung_cho_hang', true), nProd('dung_khac', true), defVal(p.dung_khac_ly_do, ''),
+          nProd('toc_do_cat'), nProd('toc_do_may'), nProd('tg_dao_cat_chi'), nProd('tg_phong_pe'), nProd('tg_han_pe'), nProd('tg_rut_pe'), nProd('kc_2_bao'),
+          nProd('nhiet_cat_bao'), nProd('nhiet_cat_chi'), nProd('nhiet_han_pe'),
+          rep.worker_name, defVal(STAT[rep.status], rep.status), defVal(rep.approved_by, ''), ng
         ]);
+        defVal(p.rolls, []).forEach(ro => {
+          const hasData = Object.entries(ro).some(([k, v]) => !['id', 'ql_xn', 'ql_xn_by'].includes(k) && String(defVal(v, '')).trim() !== '');
+          if (!hasData) return;
+          const n = (k, int = false) => int ? toIntOpt(ro[k]) : (toNum(ro[k]) ?? defVal(ro[k], ''));
+          rows2.push([
+            rep.machine, dt, rep.shift, defVal(p.ma_dh, ''), defVal(p.ma_sp, ''), defVal(ro.ma_kh, ''), defVal(ro.cuon_so_may_so, ''), defVal(ro.ca_ngay_sx, ''), n('kg_dau_cuon'),
+            defVal(ro.ma_pe, ''), defVal(ro.cuon_pe, ''), defVal(ro.ca_ngay_thoi, ''), n('kho_bao'), n('dai_cat'), n('dl10'), n('so_cai', true),
+            n('phe_co_dau'), n('phe_khong_dau', true), n('rau_bo', true), n('rau_dem', true), ro.ql_xn ? 'Có' : '', rep.worker_name
+          ]);
+        });
       });
     });
-  });
-  const h1 = ['Máy', 'Ngày', 'Ca', 'Mã đơn hàng', 'Mã sản phẩm', 'Mã C01', 'Tên C01', 'Mã C02', 'Tên C02', 'Mã C03', 'Tên C03', 'Mã C04', 'Tên C04', 'Số cái cắt được', 'Giờ bắt đầu', 'Giờ kết thúc', 'Dừng: thay cuộn', 'Dừng: đổi hàng', 'Dừng: máy hư', 'Dừng: chờ hàng', 'Dừng: khác', 'Lý do khác', 'Tốc độ cắt', 'Tốc độ may', 'TG dao cắt chỉ', 'TG phóng PE', 'TG hàn PE', 'TG rút PE', 'Khoảng cách 2 bao', 'Nhiệt cắt bao', 'Nhiệt cắt chỉ', 'Nhiệt hàn PE', 'Người nhập', 'Trạng thái phiếu', 'Quản lý duyệt', 'Số mục KT lỗi'];
-  const h2 = ['Máy', 'Ngày', 'Ca', 'Mã đơn hàng', 'Mã sản phẩm', 'Mã KH', 'Cuộn số / Máy số', 'Ca & ngày sản xuất', 'Số kg/mét đầu cuộn', 'Mã PE', 'Cuộn số / Máy thổi', 'Ca, ngày thổi', 'Khổ bao (cm)', 'Chiều dài cắt sau may (cm)', 'ĐL 10 cái đầu cuộn (g)', 'Số cái cắt được', 'Phế liệu có đánh dấu (kg)', 'Phế liệu không đánh dấu (cái)', 'Râu bỏ', 'Râu đếm', 'QL xác nhận cắt hàng loạt', 'Người nhập'];
-  const blob = buildXlsxBlob([
-    { name: 'Sản lượng cắt bao', headers: h1, rows: rows1, widths: [7, 12, 8, 18, 18, 10, 16, 10, 16, 10, 16, 10, 16, 14, 12, 12, 11, 11, 11, 11, 11, 16, 11, 11, 13, 13, 13, 13, 14, 13, 13, 13, 16, 14, 20, 14] },
-    { name: 'Chi tiết cuộn', headers: h2, rows: rows2, widths: [7, 12, 8, 16, 16, 12, 14, 14, 12, 12, 14, 14, 11, 13, 13, 13, 13, 13, 9, 9, 13, 16] }
-  ]);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `San_luong_cat_bao_${ymd().replace(/-/g, '')}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast('Đã tải file Excel ✓', 'ok');
+    const h1 = ['Máy', 'Ngày', 'Ca', 'Mã đơn hàng', 'Mã sản phẩm', 'Mã C01', 'Tên C01', 'Mã C02', 'Tên C02', 'Mã C03', 'Tên C03', 'Mã C04', 'Tên C04', 'Số cái cắt được', 'Giờ bắt đầu', 'Giờ kết thúc', 'Dừng: thay cuộn', 'Dừng: đổi hàng', 'Dừng: máy hư', 'Dừng: chờ hàng', 'Dừng: khác', 'Lý do khác', 'Tốc độ cắt', 'Tốc độ may', 'TG dao cắt chỉ', 'TG phóng PE', 'TG hàn PE', 'TG rút PE', 'Khoảng cách 2 bao', 'Nhiệt cắt bao', 'Nhiệt cắt chỉ', 'Nhiệt hàn PE', 'Người nhập', 'Trạng thái phiếu', 'Quản lý duyệt', 'Số mục KT lỗi'];
+    const h2 = ['Máy', 'Ngày', 'Ca', 'Mã đơn hàng', 'Mã sản phẩm', 'Mã KH', 'Cuộn số / Máy số', 'Ca & ngày sản xuất', 'Số kg/mét đầu cuộn', 'Mã PE', 'Cuộn số / Máy thổi', 'Ca, ngày thổi', 'Khổ bao (cm)', 'Chiều dài cắt sau may (cm)', 'ĐL 10 cái đầu cuộn (g)', 'Số cái cắt được', 'Phế liệu có đánh dấu (kg)', 'Phế liệu không đánh dấu (cái)', 'Râu bỏ', 'Râu đếm', 'QL xác nhận cắt hàng loạt', 'Người nhập'];
+    const blob = buildXlsxBlob([
+      { name: 'Sản lượng cắt bao', headers: h1, rows: rows1, widths: [7, 12, 8, 18, 18, 10, 16, 10, 16, 10, 16, 10, 16, 14, 12, 12, 11, 11, 11, 11, 11, 16, 11, 11, 13, 13, 13, 13, 14, 13, 13, 13, 16, 14, 20, 14] },
+      { name: 'Chi tiết cuộn', headers: h2, rows: rows2, widths: [7, 12, 8, 16, 16, 12, 14, 14, 12, 12, 14, 14, 11, 13, 13, 13, 13, 13, 9, 9, 13, 16] }
+    ]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `San_luong_cat_bao_${ymd().replace(/-/g, '')}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('Đã tải file Excel ✓', 'ok');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Tải file Excel (.xlsx)'; }
+  }
 }
 
-async function usersView() {
-  staffShell('<div id="lst"><p class="mut">Đang tải…</p></div>', 'users');
-  const r = await api('GET', '/api/users');
-  $('#lst').innerHTML = `<div class="card"><div class="row"><h3 class="sp">Tài khoản quản lý</h3><button class="btn pri" data-act="useradd">＋ Thêm tài khoản</button></div>
+function renderUsersList(users) {
+  const el = $('#lst');
+  if (!el) return;
+  window._users = users;
+  el.innerHTML = `<div class="card"><div class="row"><h3 class="sp">Tài khoản quản lý</h3><button class="btn pri" data-act="useradd">＋ Thêm tài khoản</button></div>
   <p class="small mut">Công nhân <b>không cần tài khoản</b> – mỗi điện thoại tự đăng ký tên lần đầu.</p></div>
-  <table class="rt"><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead><tbody>${r.users.map(u => `<tr><td data-l="Tên đăng nhập"><b>${esc(u.username)}</b></td><td data-l="Họ tên">${esc(u.full_name)}</td><td data-l="Vai trò">${u.role === 'admin' ? 'Admin tổng' : 'Quản lý ca'}</td><td data-l="Trạng thái">${u.active ? '<span class="badge b-approved">Hoạt động</span>' : '<span class="badge b-draft">Đã khóa</span>'}</td><td><button class="btn sm" data-act="useredit" data-id="${u.id}">Sửa</button></td></tr>`).join('')}</tbody></table>`;
-  window._users = r.users;
+  <table class="rt"><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead><tbody>${users.map(u => `<tr><td data-l="Tên đăng nhập"><b>${esc(u.username)}</b></td><td data-l="Họ tên">${esc(u.full_name)}</td><td data-l="Vai trò">${u.role === 'admin' ? 'Admin tổng' : 'Quản lý ca'}</td><td data-l="Trạng thái">${u.active ? '<span class="badge b-approved">Hoạt động</span>' : '<span class="badge b-draft">Đã khóa</span>'}</td><td><button class="btn sm" data-act="useredit" data-id="${u.id}">Sửa</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function usersView(force = false) {
+  staffShell('<div id="lst"><p class="mut">Đang tải…</p></div>', 'users');
+  const cached = S.cache.users || LocalDB.get('users', null);
+  if (cached) renderUsersList(cached);
+  if (S.cache.users && !force) return;
+  try {
+    const r = await api('GET', '/api/users');
+    if (r && Array.isArray(r.users)) {
+      S.cache.users = r.users;
+      if (S.view === 'staff' && S.tab === 'users') renderUsersList(r.users);
+    }
+  } catch (e) { toast(e.message, 'bad'); }
 }
 
 function userModal(id) {
-  const u = id ? window._users.find(x => x.id === id) : null;
+  const u = id ? (window._users || []).find(x => Number(x.id) === Number(id)) : null;
   const m = modal(`<h3>${u ? 'Sửa tài khoản' : 'Thêm tài khoản'}</h3>
   <label class="f"><span>Tên đăng nhập (chữ thường, không dấu)</span><input id="uu" type="text" autocapitalize="none" value="${u ? esc(u.username) : ''}" ${u ? 'disabled' : ''}></label>
   <label class="f" style="margin-top:8px"><span>Họ tên</span><input id="un" type="text" value="${u ? esc(u.full_name) : ''}"></label>
@@ -1604,7 +1913,8 @@ function userModal(id) {
         await api('POST', '/api/users', { username: $('#uu', m).value, full_name: $('#un', m).value, role: $('#ur', m).value, password: $('#up', m).value });
       }
       m.remove();
-      usersView();
+      S.cache.users = null;
+      usersView(true);
       toast('Đã lưu', 'ok');
     } catch (e) { toast(e.message, 'bad'); }
   };
@@ -1623,17 +1933,32 @@ function pwModal() {
   };
 }
 
-async function devicesView() {
-  staffShell('<div id="lst"><p class="mut">Đang tải…</p></div>', 'devices');
-  const r = await api('GET', '/api/devices');
-  const rows = r.devices.map(d => `<tr><td data-l="Tên"><b>${esc(d.name)}</b></td><td data-l="Máy">${esc(defVal(d.last_machine, ''))}</td><td class="num" data-l="Số phiếu">${d.n_reports}</td><td data-l="Gần nhất">${esc(toVNDisplay(d.last_seen).full)}</td>
+function renderDevicesList(devices) {
+  const el = $('#lst');
+  if (!el) return;
+  const rows = (devices || []).map(d => `<tr><td data-l="Tên"><b>${esc(d.name)}</b></td><td data-l="Máy">${esc(defVal(d.last_machine, ''))}</td><td class="num" data-l="Số phiếu">${defVal(d.n_reports, 0)}</td><td data-l="Gần nhất">${esc(toVNDisplay(d.last_seen).full)}</td>
   <td><button class="btn sm" data-act="devrename" data-id="${d.id}">Đổi tên</button> ${d.n_reports ? '' : `<button class="btn sm bad" data-act="devdel" data-id="${d.id}">Xóa</button>`}</td></tr>`).join('');
-  $('#lst').innerHTML = `<div class="card"><h3>Thiết bị công nhân</h3><p class="small mut">Mỗi điện thoại/trình duyệt là 1 thiết bị.</p></div>
+  el.innerHTML = `<div class="card"><h3>Thiết bị công nhân</h3><p class="small mut">Mỗi điện thoại/trình duyệt là 1 thiết bị.</p></div>
   <table class="rt"><thead><tr><th>Tên</th><th>Máy hay làm</th><th class="num">Số phiếu</th><th>Dùng gần nhất</th><th></th></tr></thead><tbody>${defVal(rows, '<tr><td colspan="5">Chưa có thiết bị nào.</td></tr>')}</tbody></table>`;
 }
 
+async function devicesView(force = false) {
+  staffShell('<div id="lst"><p class="mut">Đang tải…</p></div>', 'devices');
+  if (S.cache.devices) renderDevicesList(S.cache.devices);
+  if (S.cache.devices && !force) return;
+  try {
+    const r = await api('GET', '/api/devices');
+    if (r && Array.isArray(r.devices)) {
+      S.cache.devices = r.devices;
+      if (S.view === 'staff' && S.tab === 'devices') renderDevicesList(r.devices);
+    }
+  } catch (e) { toast(e.message, 'bad'); }
+}
+
 function settingsView() {
+  const sheetLink = S.config.sheet_url ? `<div class="note info small" style="margin-bottom:12px">📊 File Google Sheets lưu trữ dữ liệu: <a href="${esc(S.config.sheet_url)}" target="_blank"><b>Mở bảng dữ liệu Google Sheets ↗</b></a></div>` : '';
   staffShell(`<div class="card" style="max-width:720px"><h3>Cài đặt</h3>
+  ${sheetLink}
   <label class="f"><span>Danh sách máy cắt (mỗi dòng 1 máy)</span><textarea id="sm" style="min-height:140px">${esc(S.config.machines.join('\n'))}</textarea></label>
   <label class="f" style="margin-top:10px"><span>Các ca (mỗi dòng: MÃ|Tên ca). Dòng 1 = ca ngày (07h–19h), dòng 2 = ca đêm (19h–07h)</span><textarea id="ss">${esc(S.config.shifts.map(s => s.code + PIPE + s.name).join('\n'))}</textarea></label>
   <button class="btn pri" style="margin-top:12px" data-act="savesettings">Lưu cài đặt</button></div>`, 'settings');
