@@ -58,6 +58,7 @@ fieldset>legend{font-weight:700;font-size:14px;color:var(--pri);padding:0 6px}
 .note.bad{background:var(--bad-l);color:#7f1414;border:1px solid #f0bcbc}
 .note.ok{background:var(--ok-l);color:#0d5a2b;border:1px solid #b5e0c3}
 .note.info{background:var(--pri-l);color:#0b3d6e;border:1px solid #bcd6ee}
+.note.warn{background:var(--warn-l);color:#7c3705;border:1px solid #f5d4a4}
 .rcard{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:center}
 .rcard:hover{border-color:var(--pri)}
 .rcard .t{font-weight:700;font-size:17px}
@@ -124,6 +125,8 @@ table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 .nav button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .nav .cnt{background:var(--bad);color:#fff;border-radius:999px;padding:0 7px;font-size:12px;margin-left:4px}
 .filters{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));align-items:end}
+.upbox{border:2px dashed var(--pri);background:var(--pri-l);border-radius:12px;padding:18px;text-align:center;cursor:pointer;display:block}
+.upbox:hover{background:#d8e8f8}
 @media(max-width:899px){
   table.rt thead{display:none}
   table.rt,table.rt tbody,table.rt tr,table.rt td{display:block;width:100%}
@@ -251,6 +254,16 @@ const STAT = { draft: 'Đang điền', submitted: 'Chờ duyệt', approved: 'Đ
 const badge = s => `<span class="badge b-${s}">${defVal(STAT[s], s)}</span>`;
 
 const DAY_CUTOFF_HOUR = 7, SHIFT_CUTOFF_HOUR = 19;
+const DEFAULT_OLD_MACHINES = [
+  '1.CA.CN','1.CA.CT01','1.CA.CT02','1.CA.DL','1.CA.DQ',
+  '1.CA01','1.CA02','1.CA03','1.CA04','1.CA05','1.CA06','1.CA07','1.CA08','1.CA09','1.CA10',
+  '1.CA11','1.CA12','1.CA13','1.CA14','1.CA15','1.CA16','1.CA17','1.CA18','1.CA19','1.CA20',
+  '1.CA21','1.CA22','1.CA23','1.CA24','1.CA25','1.CA26','1.CA27','1.CA28','1.CA29','1.CA30',
+  '1.CA31','1.CA32','1.CA33','1.CA34','1.CA35','1.CA36','1.CA37',
+  '2.CA01','2.CA02','2.CA03','2.CA04','2.CA05','2.CA06','2.CA07','2.CA08','2.CA09','2.CA10',
+  '2.CA11','2.CA12','2.CA13','2.CA14','2.CA15','2.CAPINCH'
+];
+
 function defaults() {
   const p = vnParts();
   const d = new Date(p.raw);
@@ -272,8 +285,221 @@ const S = {
   deviceId: '', token: '', me: null, config: null, view: '',
   rep: null, pid: 0, step: 1, lan: 0, dirty: false, saving: false,
   headOpen: false, rollOpen: {}, ro: false, list: [], f: null, tab: 'pending',
-  cache: { users: null, devices: null, reports: {} }
+  parsedPlan: null,
+  cache: { users: null, devices: null, reports: {}, plans: null }
 };
+
+// ============================================================================
+// BỘ ĐỌC FILE EXCEL KẾ HOẠCH (.XLSX) TRỰC TIẾP TRÊN TRÌNH DUYỆT (KHÔNG CẦN THƯ VIỆN)
+// ============================================================================
+async function unzipXlsx(arrayBuffer) {
+  const buf = new Uint8Array(arrayBuffer);
+  const dv = new DataView(arrayBuffer);
+  let eocdOffset = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocdOffset = i; break; }
+  }
+  if (eocdOffset < 0) throw new Error('File không đúng định dạng Excel (.xlsx)');
+  const totalEntries = dv.getUint16(eocdOffset + 10, true);
+  const cdOffset = dv.getUint32(eocdOffset + 16, true);
+  let pos = cdOffset;
+  const files = {};
+  const dec = new TextDecoder('utf-8');
+  for (let i = 0; i < totalEntries; i++) {
+    if (dv.getUint32(pos, true) !== 0x02014b50) break;
+    const method = dv.getUint16(pos + 10, true);
+    const compSize = dv.getUint32(pos + 20, true);
+    const nameLen = dv.getUint16(pos + 28, true);
+    const extraLen = dv.getUint16(pos + 30, true);
+    const commentLen = dv.getUint16(pos + 32, true);
+    const localHeaderOffset = dv.getUint32(pos + 42, true);
+    const fileName = dec.decode(buf.subarray(pos + 46, pos + 46 + nameLen));
+    pos += 46 + nameLen + extraLen + commentLen;
+    const localNameLen = dv.getUint16(localHeaderOffset + 26, true);
+    const localExtraLen = dv.getUint16(localHeaderOffset + 28, true);
+    const dataStart = localHeaderOffset + 30 + localNameLen + localExtraLen;
+    const compData = buf.subarray(dataStart, dataStart + compSize);
+    if (method === 0) {
+      files[fileName] = dec.decode(compData);
+    } else if (method === 8) {
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      writer.write(compData);
+      writer.close();
+      const outBuf = await new Response(ds.readable).arrayBuffer();
+      files[fileName] = dec.decode(outBuf);
+    }
+  }
+  return files;
+}
+
+function colLettersToIndex(letters) {
+  let idx = 0;
+  for (let i = 0; i < letters.length; i++) {
+    idx = idx * 26 + (letters.charCodeAt(i) - 64);
+  }
+  return idx - 1;
+}
+
+async function parsePlanXlsxFile(file) {
+  const ab = await file.arrayBuffer();
+  const files = await unzipXlsx(ab);
+  const parser = new DOMParser();
+
+  // 1. Đọc bảng chuỗi dùng chung (sharedStrings.xml)
+  const sharedStrings = [];
+  if (files['xl/sharedStrings.xml']) {
+    const ssDoc = parser.parseFromString(files['xl/sharedStrings.xml'], 'application/xml');
+    const siNodes = ssDoc.getElementsByTagName('si');
+    for (let i = 0; i < siNodes.length; i++) {
+      const tNodes = siNodes[i].getElementsByTagName('t');
+      let s = '';
+      for (let j = 0; j < tNodes.length; j++) s += tNodes[j].textContent || '';
+      sharedStrings.push(s);
+    }
+  }
+
+  // 2. Lấy tên Sheet đầu tiên từ workbook.xml
+  let sheetName = 'Sheet1';
+  if (files['xl/workbook.xml']) {
+    const wbDoc = parser.parseFromString(files['xl/workbook.xml'], 'application/xml');
+    const shNode = wbDoc.getElementsByTagName('sheet')[0];
+    if (shNode && shNode.getAttribute('name')) sheetName = shNode.getAttribute('name');
+  }
+
+  const sheetXmlKey = Object.keys(files).find(k => /^xl\/worksheets\/sheet\d+\.xml$/.test(k));
+  if (!sheetXmlKey) throw new Error('Không tìm thấy dữ liệu trang tính trong file Excel');
+
+  const shDoc = parser.parseFromString(files[sheetXmlKey], 'application/xml');
+  const rowNodes = shDoc.getElementsByTagName('row');
+  const grid = {};
+
+  for (let i = 0; i < rowNodes.length; i++) {
+    const rNode = rowNodes[i];
+    const rNum = parseInt(rNode.getAttribute('r') || (i + 1), 10);
+    grid[rNum] = {};
+    const cNodes = rNode.getElementsByTagName('c');
+    for (let j = 0; j < cNodes.length; j++) {
+      const cNode = cNodes[j];
+      const ref = cNode.getAttribute('r') || '';
+      const m = /^([A-Z]+)\d+$/.exec(ref);
+      if (!m) continue;
+      const colIdx = colLettersToIndex(m[1]);
+      const t = cNode.getAttribute('t');
+      const vNode = cNode.getElementsByTagName('v')[0];
+      const isNode = cNode.getElementsByTagName('is')[0];
+      const fNode = cNode.getElementsByTagName('f')[0];
+      let val = '';
+      if (t === 's' && vNode) {
+        val = sharedStrings[parseInt(vNode.textContent, 10)] ?? '';
+      } else if (t === 'inlineStr' && isNode) {
+        const tNodes = isNode.getElementsByTagName('t');
+        let s = '';
+        for (let k = 0; k < tNodes.length; k++) s += tNodes[k].textContent || '';
+        val = s;
+      } else if (vNode) {
+        val = vNode.textContent ?? '';
+      }
+      grid[rNum][colIdx] = { val: String(val).trim(), formula: fNode ? fNode.textContent : '' };
+    }
+  }
+
+  const cellVal = (r, c) => (grid[r] && grid[r][c]) ? grid[r][c].val : '';
+
+  // Nhận diện Ca làm việc ở C1 (row 1, col 2)
+  let shift = cellVal(1, 2) || defaults().shift;
+  // Nhận diện Ngày kế hoạch ở D1 (row 1, col 3) hoặc tên Sheet kiểu N(20), D(20)
+  let planDate = defaults().date;
+  const d1 = cellVal(1, 3);
+  if (d1 && /^\d{5}(\.\d+)?$/.test(d1)) {
+    const serial = Math.floor(Number(d1));
+    const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+    planDate = `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}`;
+  } else if (/^\d{4}-\d{2}-\d{2}/.test(d1)) {
+    planDate = d1.slice(0, 10);
+  }
+
+  // Duyệt từ dòng 3 trở đi để lấy danh sách máy (Cột A = index 0) và các đơn hàng
+  const machinesSet = new Set();
+  const itemsByMachine = {};
+  let totalOrders = 0;
+  const maxRow = Math.max(0, ...Object.keys(grid).map(Number));
+
+  for (let r = 3; r <= maxRow; r++) {
+    const mayCu = cellVal(r, 0);     // Cột A: MÁY CŨ (VD: 1.CA.CN, 1.CA01)
+    if (!mayCu || mayCu.toUpperCase() === 'MÁY CŨ') continue;
+    machinesSet.add(mayCu);
+    if (!itemsByMachine[mayCu]) itemsByMachine[mayCu] = [];
+
+    const maDh = cellVal(r, 2);      // Cột C: ĐƠN HÀNG
+    const lenhSx = cellVal(r, 3);    // Cột D: LỆNH SX
+    const maKh = cellVal(r, 5);      // Cột F: Mã KH
+    const maSp = cellVal(r, 6);      // Cột G: Mã SP (mã SP cũ)
+    const loaiBao = cellVal(r, 8);   // Cột I: Loại bao
+    const moTa = cellVal(r, 12);     // Cột M: Mô tả loại bao & chiều dài cắt
+    const daiCat = cellVal(r, 13);   // Cột N: Chiều dài cắt SAU MAY (cm)
+    const dinhLuong = cellVal(r, 14);// Cột O: Định lượng (g/cái)
+    const maPe = cellVal(r, 15);     // Cột P: Mã PE ERP
+    const slKeHoach = cellVal(r, 20);// Cột U: Số lượng kế hoạch
+    const phuongPhap = cellVal(r, 21);// Cột V: Phương pháp thực hiện
+
+    if (maDh || maSp) {
+      itemsByMachine[mayCu].push({
+        ma_dh: maDh,
+        ma_kh: maKh,
+        ma_sp: maSp,
+        lenh_sx: lenhSx,
+        loai_bao: loaiBao,
+        mo_ta: moTa,
+        dai_cat: daiCat,
+        dinh_luong: dinhLuong,
+        ma_pe: (maPe && maPe !== '0') ? maPe : '',
+        sl_ke_hoach: toInt(slKeHoach),
+        phuong_phap: phuongPhap
+      });
+      totalOrders++;
+    }
+  }
+
+  return {
+    sheetName,
+    plan_date: planDate,
+    shift,
+    machines: [...machinesSet],
+    itemsByMachine,
+    totalOrders
+  };
+}
+
+// Tạo sản phẩm từ 1 dòng kế hoạch (sườn gợi ý cho công nhân)
+function createProductFromPlanItem(it, workerName) {
+  const p = newProduct();
+  p.ma_dh = defVal(it.ma_dh, '');
+  p.ma_sp = defVal(it.ma_sp, '');
+  p.c01_name = workerName || S.rep?.worker_name || S.me?.name || '';
+  if (p.rolls && p.rolls[0]) {
+    p.rolls[0].ma_kh = defVal(it.ma_kh, '');
+    if (it.ma_pe) p.rolls[0].ma_pe = it.ma_pe;
+  }
+  if (it.dinh_luong) p.qc.yc.dinhluong = String(it.dinh_luong);
+  p.plan_meta = {
+    ma_kh: defVal(it.ma_kh, ''),
+    sl_ke_hoach: it.sl_ke_hoach || 0,
+    dai_cat: defVal(it.dai_cat, ''),
+    dinh_luong: defVal(it.dinh_luong, ''),
+    mo_ta: defVal(it.mo_ta, ''),
+    phuong_phap: defVal(it.phuong_phap, '')
+  };
+  return p;
+}
+
+function getLocalPlanItems(date, shift, machine) {
+  const plans = LocalDB.get('plans', {});
+  const key = `${date}_${shift}`;
+  const plan = plans[key];
+  if (!plan || !plan.items) return [];
+  return plan.items[String(machine)] || [];
+}
 
 // ============================================================================
 // DATABASE OFFLINE DỰ PHÒNG ĐẦY ĐỦ (LOCAL STORAGE)
@@ -289,12 +515,13 @@ const LocalDB = {
   handle(method, url, body = {}) {
     const u = new URL(url, location.origin), p = u.pathname, q = Object.fromEntries(u.searchParams);
     const settings = this.get('settings', {
-      machines: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+      machines: DEFAULT_OLD_MACHINES,
       shifts: [{ code: '1N1', name: 'Ca ngày' }, { code: '2D1', name: 'Ca đêm' }]
     });
     const users = this.get('users', [{ id: 1, username: 'admin', full_name: 'Admin tổng', role: 'admin', pw: 'admin123', active: 1, created_at: nowStr() }]);
     const devices = this.get('devices', {});
     const reports = this.get('reports', []);
+    const plans = this.get('plans', {});
 
     const getMeObj = () => {
       if (S.token) {
@@ -319,6 +546,44 @@ const LocalDB = {
     }
     if (p === '/api/config') return { ...settings, server_time: nowStr() };
     if (p === '/api/me') return getMeObj();
+
+    // API Quản lý Kế hoạch sản xuất (Plans)
+    if (p === '/api/plans' && method === 'GET') {
+      if (q.date && q.shift && q.machine) {
+        const key = `${q.date}_${q.shift}`;
+        const pl = plans[key];
+        return { items: (pl && pl.items && pl.items[q.machine]) ? pl.items[q.machine] : [] };
+      }
+      const list = Object.values(plans).sort((a, b) => String(b.plan_date).localeCompare(String(a.plan_date)));
+      return { plans: list };
+    }
+    if (p === '/api/plans' && method === 'POST') {
+      const key = `${body.plan_date}_${body.shift}`;
+      const totalOrders = Object.values(body.items || {}).reduce((s, arr) => s + (Array.isArray(arr) ? arr.length : 0), 0);
+      plans[key] = {
+        key,
+        plan_date: body.plan_date,
+        shift: body.shift,
+        items: body.items || {},
+        n_machines: Object.keys(body.items || {}).filter(m => (body.items[m] || []).length > 0).length,
+        n_orders: totalOrders,
+        updated_by: (S.me && S.me.name) ? S.me.name : 'Quản lý',
+        updated_at: nowStr()
+      };
+      this.set('plans', plans);
+      if (Array.isArray(body.sync_machines) && body.sync_machines.length) {
+        settings.machines = body.sync_machines;
+        this.set('settings', settings);
+      }
+      return { ok: true, plan: plans[key] };
+    }
+    if (p === '/api/plans' && method === 'DELETE') {
+      const key = `${q.date}_${q.shift}`;
+      delete plans[key];
+      this.set('plans', plans);
+      return { ok: true };
+    }
+
     if (p === '/api/device' && method === 'POST') {
       devices[body.id] = { id: body.id, name: body.name, last_machine: body.machine, created_at: nowStr(), last_seen: nowStr() };
       this.set('devices', devices);
@@ -361,14 +626,20 @@ const LocalDB = {
       if (ex) return { id: ex.id, existing: true, report: ex };
       const id = reports.length ? Math.max(...reports.map(x => x.id)) + 1 : 1;
       const dev = devices[S.deviceId] ? devices[S.deviceId] : { name: localStorage.getItem('cb_dev_name') || 'Công nhân' };
+
+      // Tự động lấy sườn kế hoạch nếu có cho Ngày + Ca + Máy đó
+      const planItems = getLocalPlanItems(body.report_date, body.shift, body.machine);
+      const initProducts = planItems.map(it => createProductFromPlanItem(it, dev.name));
+
       const nr = {
         id, device_id: S.deviceId, machine: body.machine, report_date: body.report_date, shift: body.shift,
-        worker_name: dev.name, status: 'draft', data: { products: [] }, manager_note: '',
-        approved_by: '', approved_at: '', submitted_at: '', created_at: nowStr(), updated_at: nowStr()
+        worker_name: dev.name, status: 'draft',
+        data: { products: initProducts, plan_items: planItems },
+        manager_note: '', approved_by: '', approved_at: '', submitted_at: '', created_at: nowStr(), updated_at: nowStr()
       };
       reports.push(nr);
       this.set('reports', reports);
-      return { id, existing: false, report: nr };
+      return { id, existing: false, report: nr, from_plan: planItems.length };
     }
     const mRep = /^\/api\/reports\/(\d+)(?:\/(\w+))?$/.exec(p);
     if (mRep) {
@@ -505,6 +776,10 @@ function syncToLocalMirror(method, url, body, res) {
       LocalDB.set('settings', { machines: res.machines, shifts: res.shifts });
     } else if (url === '/api/me' && res && res.kind) {
       LocalDB.set('me_cache', res);
+    } else if (url.startsWith('/api/plans') && method === 'GET' && res && Array.isArray(res.plans)) {
+      const map = {};
+      res.plans.forEach(pl => { map[`${pl.plan_date}_${pl.shift}`] = pl; });
+      LocalDB.set('plans', map);
     } else if (url.startsWith('/api/reports') && method === 'GET' && res) {
       if (Array.isArray(res.reports)) syncReportListToLocal(res.reports);
       else if (res.id) upsertLocalReport(res);
@@ -558,7 +833,7 @@ async function api(method, url, body) {
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const timer = setTimeout(() => ctrl.abort(), 14000);
     const r = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -570,7 +845,6 @@ async function api(method, url, body) {
     const j = await r.json().catch(() => ({}));
     const status = j._status || r.status;
 
-    // Lỗi nghiệp vụ (400, 401, 403, 404): Hiển thị thông báo chính xác cho người dùng
     if (status >= 400 && status < 500) {
       if (status === 401 && S.token) staffLogoutLocal();
       const e = new Error(defVal(j.error, 'Lỗi ' + status));
@@ -586,7 +860,6 @@ async function api(method, url, body) {
     return j;
   } catch (e) {
     if (e.isBusinessError) throw e;
-    // Chỉ khi mất mạng hoặc Script chưa cập nhật (lỗi 500) mới chạy chế độ dự phòng LocalDB
     return LocalDB.handle(method, url, body);
   }
 }
@@ -599,7 +872,7 @@ function toast(msg, type = '') {
   t.className = 'toast ' + type;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), type === 'bad' ? 4500 : 2200);
+  setTimeout(() => t.remove(), type === 'bad' ? 4500 : 2500);
 }
 function modal(html, wide) {
   const m = document.createElement('div');
@@ -710,7 +983,6 @@ async function boot() {
   S.deviceId = defVal(localStorage.getItem('cb_dev'), '');
   S.token = defVal(localStorage.getItem('cb_tok'), '');
 
-  // 1. Hiển thị ngay lập tức từ bộ nhớ đệm nếu đã từng đăng nhập (0ms)
   const cachedSettings = LocalDB.get('settings', null);
   const cachedMe = LocalDB.get('me_cache', null);
   if (cachedSettings && cachedMe && cachedMe.kind !== 'none') {
@@ -725,7 +997,6 @@ async function boot() {
     }
   }
 
-  // 2. Đồng bộ ngầm bằng 1 lệnh /api/bootstrap duy nhất
   try {
     const b = await api('GET', '/api/bootstrap');
     if (b && b.config) {
@@ -740,7 +1011,6 @@ async function boot() {
       S.me = me;
       if (Array.isArray(b.reports)) S.list = b.reports;
     } else {
-      // Dự phòng nếu Apps Script chưa cập nhật hàm bootstrap
       S.config = await api('GET', '/api/config');
       S.me = await api('GET', '/api/me');
     }
@@ -751,7 +1021,7 @@ async function boot() {
     }
   }
 
-  if (S.view === 'edit') return; // Không làm gián đoạn nếu công nhân đang mở phiếu
+  if (S.view === 'edit') return;
   if (S.me.kind === 'staff') {
     S.f = S.f || defFilters();
     S.tab = S.tab || 'pending';
@@ -774,12 +1044,12 @@ const logoHTML = '<div class="logo"><svg width="38" height="38" viewBox="0 0 64 
 
 function welcome() {
   S.view = 'welcome';
-  const ms = (S.config && S.config.machines) ? S.config.machines : ['1','2','3','4','5','6','7','8','9','10'];
+  const ms = (S.config && S.config.machines && S.config.machines.length) ? S.config.machines : DEFAULT_OLD_MACHINES;
   app.innerHTML = `<div class="center"><div class="card">${logoHTML}
   <h2 style="text-align:center">Báo cáo cắt bao</h2>
   <p class="mut" style="text-align:center;margin:4px 0 16px">Lần đầu dùng điện thoại/máy này – nhập tên của bạn</p>
   <label class="f"><span>Họ và tên công nhân (C01)</span><input id="wn" type="text" autocomplete="off" placeholder="VD: Nguyễn Văn A"></label>
-  <label class="f" style="margin-top:10px"><span>Máy cắt hay làm (có thể đổi sau)</span><select id="wm">${ms.map(m => `<option>${esc(m)}</option>`).join('')}</select></label>
+  <label class="f" style="margin-top:10px"><span>Máy cắt hay làm (Mã máy Cột A, có thể đổi sau)</span><select id="wm">${ms.map(m => `<option>${esc(m)}</option>`).join('')}</select></label>
   <button class="btn pri lg" style="margin-top:16px" data-act="register">Bắt đầu</button>
   <p class="small mut" style="margin-top:14px;text-align:center">Dùng được trên cả Wi-Fi nội bộ và mạng 4G cá nhân.</p>
   <p style="text-align:center;margin-top:10px"><a href="#" data-act="stafflogin">Đăng nhập Quản lý ca / Admin</a></p></div></div>`;
@@ -827,7 +1097,6 @@ async function workerHome(fromBoot = false) {
   <div class="wrap"><button class="btn pri lg" data-act="newrep">＋ Tạo phiếu báo cáo mới</button>
   <h3 style="margin:18px 0 8px">Phiếu của tôi</h3><div id="lst"><p class="mut">Đang tải…</p></div></div>`;
 
-  // Hiển thị ngay danh sách đã có trong RAM/LocalDB (0ms)
   const cached = S.list.length ? S.list : LocalDB.handle('GET', '/api/reports').reports;
   if (cached && cached.length) renderWorkerList(cached);
 
@@ -842,16 +1111,47 @@ async function workerHome(fromBoot = false) {
 }
 
 function newRepModal() {
-  const d = defaults(), sh = S.config.shifts, ms = S.config.machines;
+  const d = defaults(), sh = S.config.shifts, ms = (S.config.machines && S.config.machines.length) ? S.config.machines : DEFAULT_OLD_MACHINES;
   const last = S.me.last_machine && ms.includes(S.me.last_machine) ? S.me.last_machine : ms[0];
   const m = modal(`<h3>Tạo phiếu mới</h3>
-  <div class="note info">Hệ thống đã tự tính <b>Ngày</b> và <b>Ca</b> theo giờ Việt Nam hiện tại (07h–19h: <b>1N1</b>, 19h–07h sáng: <b>2D1</b>). Nếu sai bạn có thể chỉnh lại.</div>
+  <div class="note info">Hệ thống tự tính <b>Ngày</b> và <b>Ca</b> theo giờ Việt Nam (07h–19h: <b>1N1</b>, 19h–07h: <b>2D1</b>). Nếu đã có <b>Kế hoạch SX</b> cho đúng Ngày/Ca/Máy, phiếu sẽ tự động nạp sẵn sườn Đơn hàng, Mã KH và Mã SP.</div>
   <label class="f"><span>Ngày sản xuất</span><input id="nd" type="date" value="${d.date}"></label>
   <div style="margin-top:10px"><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span>
    <div class="seg neutral" id="ns" style="margin-top:3px">${sh.map(s => `<button type="button" class="${s.code === d.shift ? 'on' : ''}" data-code="${esc(s.code)}">${esc(s.name)}<br><small>${esc(s.code)}</small></button>`).join('')}</div></div>
-  <label class="f" style="margin-top:10px"><span>Máy cắt số</span><select id="nm">${ms.map(x => `<option ${x === last ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+  <label class="f" style="margin-top:10px"><span>Máy cắt (Mã máy Cột A)</span><select id="nm">${ms.map(x => `<option ${x === last ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+  <div id="plan_preview" style="margin-top:10px"></div>
   <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ngo" style="flex:1">Bắt đầu điền phiếu</button></div>`);
-  $('#ns', m).onclick = e => { const b = e.target.closest('button'); if (!b) return; $$('#ns button', m).forEach(x => x.classList.toggle('on', x === b)); };
+
+  const updatePreview = async () => {
+    const rDate = $('#nd', m).value;
+    const code = $('#ns button.on', m)?.dataset.code || d.shift;
+    const mach = $('#nm', m).value;
+    const box = $('#plan_preview', m);
+    let items = getLocalPlanItems(rDate, code, mach);
+    if (!items.length) {
+      try {
+        const res = await api('GET', `/api/plans?date=${encodeURIComponent(rDate)}&shift=${encodeURIComponent(code)}&machine=${encodeURIComponent(mach)}`);
+        if (res && Array.isArray(res.items)) items = res.items;
+      } catch (e) {}
+    }
+    if (!box) return;
+    if (items.length) {
+      box.innerHTML = `<div class="note ok small" style="margin:0">📋 <b>Đã tìm thấy ${items.length} đơn trong Kế hoạch SX</b> của máy <b>${esc(mach)}</b>:<br>${items.map((it, i) => `${i + 1}. ĐH: <b>${esc(it.ma_dh)}</b> · KH: <b>${esc(it.ma_kh)}</b> · SP: <b>${esc(it.ma_sp)}</b>${it.sl_ke_hoach ? ` (${fmtN(it.sl_ke_hoach)} cái)` : ''}`).join('<br>')}<br><span class="mut">Hệ thống sẽ điền sẵn làm sườn, bạn có thể sửa lại theo thực tế.</span></div>`;
+    } else {
+      box.innerHTML = `<div class="small mut">Chưa có kế hoạch tải lên cho Máy ${esc(mach)} · Ca ${esc(code)} · Ngày ${fd(rDate)} (Bạn vẫn tạo phiếu và nhập tay bình thường).</div>`;
+    }
+  };
+
+  $('#ns', m).onclick = e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    $$('#ns button', m).forEach(x => x.classList.toggle('on', x === b));
+    updatePreview();
+  };
+  $('#nd', m).onchange = updatePreview;
+  $('#nm', m).onchange = updatePreview;
+  updatePreview();
+
   $('#ngo', m).onclick = async () => {
     const btn = $('#ngo', m);
     btn.disabled = true; btn.textContent = 'Đang tạo phiếu…';
@@ -863,7 +1163,11 @@ function newRepModal() {
       localStorage.setItem('cb_dev_machine', mach);
       const r = await api('POST', '/api/reports', { machine: mach, report_date: rDate, shift: code });
       m.remove();
-      if (r.existing) toast('Đã có phiếu cho ngày/ca/máy này – mở lại phiếu cũ');
+      if (r.existing) {
+        toast('Đã có phiếu cho ngày/ca/máy này – mở lại phiếu cũ');
+      } else if (r.from_plan) {
+        toast(`Đã nạp sẵn ${r.from_plan} đơn hàng từ Kế hoạch SX ✓`, 'ok');
+      }
       if (r.report) {
         upsertLocalReport(r.report);
         openReport(r.id, r.report);
@@ -879,11 +1183,11 @@ function newRepModal() {
 
 function helpModal() {
   modal(`<h3>Hướng dẫn nhanh</h3><ol class="steps">
-  <li><b>Tạo phiếu</b>: kiểm tra ngày – ca – máy, bấm “Bắt đầu”.</li>
-  <li><b>Mỗi sản phẩm/đơn hàng = 1 thẻ</b>. Điền các bước: <b>① Đơn hàng & CN</b> → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
-  <li>Đổi đơn hàng mới: bấm <b>＋ Thêm sản phẩm</b>. Nếu đơn sau trùng thông số máy với đơn trước, có nút <b>Sao chép thông số</b> ở bước ③.</li>
+  <li><b>Tạo phiếu</b>: kiểm tra ngày – ca – máy (mã máy cũ Cột A), bấm “Bắt đầu”. Nếu quản lý đã tải kế hoạch lên, phiếu sẽ <b>tự động có sẵn sườn Mã ĐH, Mã KH, Mã SP</b> của máy đó.</li>
+  <li><b>Điều chỉnh theo thực tế</b>: sườn kế hoạch chỉ là gợi ý. Nếu thực tế chạy khác kế hoạch, bạn có thể sửa trực tiếp Mã ĐH, Mã SP, Mã KH, xóa bớt đơn không chạy hoặc bấm <b>＋ Thêm sản phẩm</b>.</li>
+  <li><b>Điền 4 bước</b>: <b>① Đơn hàng & CN</b> → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
   <li>Phiếu kiểm tra chất lượng: bấm <b>Đạt</b> / <b>Không đạt</b> từng dòng. Nhanh nhất: bấm <b>“✓ Đạt hết”</b> rồi sửa dòng nào không đạt.</li>
-  <li>Dữ liệu được <b>lưu nháp tức thì trên máy</b>. Điền xong bấm <b>“💾 Lưu”</b> hoặc <b>“📤 Gửi duyệt”</b>.</li></ol>
+  <li>Điền xong bấm <b>“💾 Lưu”</b> hoặc <b>“📤 Gửi duyệt”</b>.</li></ol>
   <div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
 }
 
@@ -984,7 +1288,7 @@ const lanAnswered = l => OK_ITEMS.filter(i => l.v[i.k]).length;
 const lanDone = l => !!l.v.tg && lanAnswered(l) === OK_ITEMS.length;
 
 // ============================================================================
-// TRÌNH BIÊN TẬP PHIẾU (EDITOR) & CẬP NHẬT DOM CỤC BỘ SIÊU MƯỢT
+// TRÌNH BIÊN TẬP PHIẾU (EDITOR)
 // ============================================================================
 const isWorker = () => S.me.kind === 'worker';
 const isAdmin = () => S.me.kind === 'staff' && S.me.role === 'admin';
@@ -1002,7 +1306,17 @@ function prepareReportForEdit(r) {
   S.rep.data = defVal(S.rep.data, {});
   S.rep.data.products = defVal(S.rep.data.products, []);
   S.ro = !(isWorker() ? S.rep.status !== 'approved' : isAdmin());
-  if (!S.ro && !S.rep.data.products.length) S.rep.data.products.push(newProduct());
+
+  // Nếu phiếu mới tinh chưa có SP nào, kiểm tra xem có sườn Kế hoạch ở Local không
+  if (!S.ro && !S.rep.data.products.length) {
+    const planItems = S.rep.data.plan_items || getLocalPlanItems(S.rep.report_date, S.rep.shift, S.rep.machine);
+    if (Array.isArray(planItems) && planItems.length) {
+      S.rep.data.plan_items = planItems;
+      S.rep.data.products = planItems.map(it => createProductFromPlanItem(it, S.rep.worker_name));
+    } else {
+      S.rep.data.products.push(newProduct());
+    }
+  }
   S.rep.data.products.forEach(p => {
     ensureShape(p);
     const rollSum = p.rolls.reduce((a, ro) => a + toInt(ro.so_cai), 0);
@@ -1012,7 +1326,6 @@ function prepareReportForEdit(r) {
 
 async function openReport(id, preloaded = null) {
   try {
-    // Mở ngay lập tức nếu đã có dữ liệu trong cache hoặc vừa tạo xong (0ms)
     const localRep = preloaded || (LocalDB.get('reports', []).find(x => Number(x.id) === Number(id) && x.data && x.data.products && x.data.products.length));
     if (localRep) {
       prepareReportForEdit(localRep);
@@ -1021,7 +1334,6 @@ async function openReport(id, preloaded = null) {
       renderEditor();
       window.scrollTo(0, 0);
       if (!preloaded) {
-        // Tải ngầm bản mới nhất từ server nếu chưa có thay đổi nháp trên máy
         api('GET', '/api/reports/' + id).then(fresh => {
           if (S.view === 'edit' && S.rep && Number(S.rep.id) === Number(id) && !S.dirty) {
             prepareReportForEdit(fresh);
@@ -1069,7 +1381,6 @@ function markDirty() {
     S.dirty = true;
     setSaveText('Chưa lưu (đã giữ trên máy)');
   }
-  // Debounce 350ms để gõ phím liên tục cực mượt, không bị khựng bởi JSON.stringify
   clearTimeout(bkTimer);
   bkTimer = setTimeout(flushLocalBackup, 350);
 }
@@ -1141,7 +1452,7 @@ function clientErrors() {
 async function submitReport() {
   const errs = clientErrors();
   if (errs.length) {
-    modal(`<h3>Chưa đủ thông tin để gửi</h3><p>Vui lòng bổ sung:</p><ul>${errs.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
+    modal(`<h3>Chưa đủ thông tin để gửi</h3><p>Vui lòng bổ sung (Nếu đơn hàng nào trong kế hoạch thực tế không chạy, bạn hãy bấm nút <b>"Xóa sản phẩm này"</b> ở cuối trang):</p><ul>${errs.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
     return;
   }
   if (!await ask('Gửi quản lý duyệt?', 'Sau khi quản lý duyệt, bạn sẽ <b>không sửa được nữa</b>. Kiểm tra kỹ rồi gửi.', 'Gửi duyệt')) return;
@@ -1206,7 +1517,6 @@ function applyReadOnlyState(root = app) {
   $$('.edit-only', root).forEach(el => el.classList.add('hide'));
 }
 
-// Chỉ cập nhật phần thân bước hiện tại (#pbody) để chuyển Bước ① ② ③ ④ trong 0ms
 function renderStepBody() {
   const pb = $('#pbody');
   if (!pb) return renderEditor();
@@ -1230,7 +1540,7 @@ function renderEditor() {
    ${S.ro ? '' : `<button class="btn sm" data-act="head">${S.headOpen ? 'Xong' : 'Sửa ngày / ca / máy'}</button>`}</div>`;
   if (S.headOpen && !S.ro) {
     h += `<div class="grid g2" style="margin-top:10px"><label class="f"><span>Ngày sản xuất</span><input type="date" data-p="report_date" data-re="1" value="${esc(r.report_date)}"></label>
-    <label class="f"><span>Máy cắt số</span><select data-p="machine" data-re="1">${[...new Set([...S.config.machines, r.machine])].map(m => `<option ${m === r.machine ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+    <label class="f"><span>Máy cắt (Cột A)</span><select data-p="machine" data-re="1">${[...new Set([...S.config.machines, r.machine])].map(m => `<option ${m === r.machine ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
     <div><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span><div class="seg neutral" style="margin-top:3px">${S.config.shifts.map(s => `<button type="button" class="${s.code === r.shift ? 'on' : ''}" data-act="seg" data-p="shift" data-v="${esc(s.code)}" data-re="1">${esc(s.name)}<br><small>${esc(s.code)}</small></button>`).join('')}</div></div>
     ${F('worker_name', 'Tên người nhập (C01)')}</div>`;
   }
@@ -1240,7 +1550,7 @@ function renderEditor() {
   h += `<div class="tabs">${STEPS.map(([n, l]) => `<button class="tab ${S.step === n ? 'on' : ''} ${st[n] ? 'done' : ''}" data-act="step" data-n="${n}">${l}<small>${st[n] ? '✓ xong' : 'chưa xong'}</small></button>`).join('')}</div>`;
   h += `<div class="card" id="pbody">${S.step === 1 ? step1(P) : S.step === 2 ? step2(P) : S.step === 3 ? step3(P) : step4(P)}</div>`;
   h += `<div class="card"><div class="row"><b>Tổng cắt cả phiếu:</b><span class="sp"></span><b style="font-size:20px"><span id="grand">${fmtN(prods().reduce((a, x) => a + toInt(x.tong_cai), 0))}</span> cái</b></div></div>`;
-  if (prods().length > 1 && !S.ro) h += `<button class="btn bad sm" data-act="delprod">Xóa sản phẩm ${P + 1} này</button>`;
+  if (prods().length > 1 && !S.ro) h += `<button class="btn bad sm" data-act="delprod">🗑 Xóa sản phẩm ${P + 1} này (nếu thực tế không chạy)</button>`;
   h += `</div>` + saveBar();
   keepScroll(() => { app.innerHTML = h; });
   applyReadOnlyState(app);
@@ -1268,10 +1578,26 @@ function step1(P) {
   const b = `data.products.${P}.`, p = prods()[P];
   const auto = p.rolls.reduce((a, r) => a + toInt(r.so_cai), 0) > 0;
   const dung = ['dung_thay_cuon', 'dung_doi_hang', 'dung_may_hu', 'dung_cho_hang', 'dung_khac'].reduce((a, k) => a + toInt(p[k]), 0);
+  const firstRollKh = (p.rolls && p.rolls[0]) ? defVal(p.rolls[0].ma_kh, '') : '';
+
+  let planBanner = '';
+  if (p.plan_meta) {
+    const pm = p.plan_meta;
+    planBanner = `<div class="note warn small" style="margin-top:8px">
+      <div class="row"><b>📋 Sườn theo Kế hoạch SX:</b><span class="sp"></span>${!S.ro ? `<button type="button" class="btn sm" data-act="pickplan">Đổi đơn khác từ KH</button>` : ''}</div>
+      KH: <b>${esc(defVal(firstRollKh, pm.ma_kh))}</b> · SL kế hoạch: <b>${pm.sl_ke_hoach ? fmtN(pm.sl_ke_hoach) + ' cái' : '—'}</b> · Dài cắt: <b>${esc(defVal(pm.dai_cat, '—'))}cm</b> · ĐL: <b>${esc(defVal(pm.dinh_luong, '—'))}g</b>
+      ${pm.mo_ta ? `<br>Mô tả: <b>${esc(pm.mo_ta)}</b>` : ''}${pm.phuong_phap ? ` · PP: <b>${esc(pm.phuong_phap)}</b>` : ''}
+      <br><i>Lưu ý: Đây chỉ là sườn theo kế hoạch, nếu thực tế chạy khác bạn hãy chỉnh sửa trực tiếp các ô bên dưới theo đúng thực tế!</i>
+    </div>`;
+  } else if (!S.ro) {
+    planBanner = `<div class="row" style="margin-top:6px;margin-bottom:4px"><span class="small mut">Bạn có thể nhập tay hoặc nạp nhanh sườn từ Kế hoạch SX của ca này:</span><span class="sp"></span><button type="button" class="btn sm" data-act="pickplan">📋 Chọn đơn từ Kế hoạch SX</button></div>`;
+  }
+
   return `<h3>① Đơn hàng & Công nhân thực hiện</h3>
+  ${planBanner}
   <div class="grid g2" style="margin-top:8px">
-    ${F(b + 'ma_dh', 'Mã đơn hàng', { req: 1, ph: 'VD: ĐH-2410-01' })}
-    ${F(b + 'ma_sp', 'Mã sản phẩm', { req: 1, ph: 'VD: SP-1234' })}
+    ${F(b + 'ma_dh', 'Mã đơn hàng (Cột C)', { req: 1, ph: 'VD: S261014046' })}
+    ${F(b + 'ma_sp', 'Mã sản phẩm cũ (Cột G)', { req: 1, ph: 'VD: B-B042.G01.0113A01' })}
   </div>
   <fieldset style="margin-top:12px"><legend>Công nhân thực hiện (Tối đa 4 người)</legend>
     <div class="grid g2">
@@ -1307,7 +1633,7 @@ const nextBtn = n => S.ro ? '' : `<div style="margin-top:14px"><button class="bt
 
 function step2(P) {
   const p = prods()[P];
-  return `<h3>② Các cuộn đã cắt</h3><p class="small mut">Mỗi cuộn PP cắt xong ghi 1 thẻ. Bấm vào tiêu đề để mở/đóng.</p>
+  return `<h3>② Các cuộn đã cắt</h3><p class="small mut">Mỗi cuộn PP cắt xong ghi 1 thẻ. Mã KH được điền sẵn từ kế hoạch (Cột F), bạn có thể sửa lại nếu thực tế thay đổi.</p>
   ${p.rolls.map((r, i) => rollHTML(P, i)).join('')}
   ${S.ro ? '' : `<button class="btn" style="width:100%" data-act="addroll">＋ Thêm cuộn</button>`}${nextBtn(3)}`;
 }
@@ -1315,10 +1641,10 @@ function step2(P) {
 function rollHTML(P, R) {
   const p = prods()[P], r = p.rolls[R], b = `data.products.${P}.rolls.${R}.`;
   const open = S.rollOpen[r.id] ?? (R === p.rolls.length - 1);
-  let h = `<div class="roll"><button class="rh" data-act="togroll" data-id="${r.id}"><b>Cuộn ${R + 1}${r.cuon_so_may_so ? ' · ' + esc(r.cuon_so_may_so) : ''}</b><span class="${toInt(r.so_cai) ? '' : 'mut'}">${toInt(r.so_cai) ? fmtN(toInt(r.so_cai)) + ' cái' : 'chưa nhập'}</span><span>${open ? '▲' : '▼'}</span></button>`;
+  let h = `<div class="roll"><button class="rh" data-act="togroll" data-id="${r.id}"><b>Cuộn ${R + 1}${r.ma_kh ? ' · KH: ' + esc(r.ma_kh) : ''}${r.cuon_so_may_so ? ' · ' + esc(r.cuon_so_may_so) : ''}</b><span class="${toInt(r.so_cai) ? '' : 'mut'}">${toInt(r.so_cai) ? fmtN(toInt(r.so_cai)) + ' cái' : 'chưa nhập'}</span><span>${open ? '▲' : '▼'}</span></button>`;
   if (open) {
     h += `<div class="rb"><div class="grid g2" style="margin-top:6px">${FI(b + 'so_cai', 'Số cái cắt được', { req: 1, cls: 'big' })}</div>
-    <fieldset><legend>Thông tin đầu cuộn Dệt / Tráng / Lộn / In flexo</legend><div class="grid">${F(b + 'ma_kh', 'Mã KH')}${F(b + 'cuon_so_may_so', 'Cuộn số và Máy số')}${F(b + 'ca_ngay_sx', 'Ca và ngày sản xuất')}${FN(b + 'kg_dau_cuon', 'Số kg / mét đầu cuộn')}</div></fieldset>
+    <fieldset><legend>Thông tin đầu cuộn Dệt / Tráng / Lộn / In flexo</legend><div class="grid">${F(b + 'ma_kh', 'Mã KH (Cột F)')}${F(b + 'cuon_so_may_so', 'Cuộn số và Máy số')}${F(b + 'ca_ngay_sx', 'Ca và ngày sản xuất')}${FN(b + 'kg_dau_cuon', 'Số kg / mét đầu cuộn')}</div></fieldset>
     <fieldset><legend>Thông tin cuộn PE (Có thể để trống nếu không lồng PE)</legend><div class="grid">${F(b + 'ma_pe', 'Mã PE')}${F(b + 'cuon_pe', 'Cuộn số / Máy thổi số')}${F(b + 'ca_ngay_thoi', 'Ca, ngày thổi')}</div></fieldset>
     <fieldset><legend>Sản phẩm cắt thực tế</legend><div class="grid">${FN(b + 'kho_bao', 'Khổ bao (cm)')}${FN(b + 'dai_cat', 'Chiều dài cắt sau may (cm)')}${FN(b + 'dl10', 'ĐL 10 cái đầu cuộn (g)')}</div></fieldset>
     <fieldset><legend>Phế liệu & râu</legend><div class="grid">${FN(b + 'phe_co_dau', 'Phế liệu CÓ đánh dấu (kg)')}${FI(b + 'phe_khong_dau', 'Phế liệu KHÔNG đánh dấu (cái)')}${FI(b + 'rau_bo', 'Râu bỏ')}${FI(b + 'rau_dem', 'Râu đếm')}</div></fieldset>
@@ -1397,6 +1723,77 @@ function dqHelp() {
  <div class="row end"><button class="btn pri" data-close>Đóng</button></div>`);
 }
 
+// Hộp thoại chọn đơn từ Kế hoạch sản xuất ngay trong phiếu
+async function pickPlanItemModal() {
+  const r = S.rep;
+  let items = (r.data && Array.isArray(r.data.plan_items) && r.data.plan_items.length)
+    ? r.data.plan_items
+    : getLocalPlanItems(r.report_date, r.shift, r.machine);
+
+  if (!items.length) {
+    try {
+      const res = await api('GET', `/api/plans?date=${encodeURIComponent(r.report_date)}&shift=${encodeURIComponent(r.shift)}&machine=${encodeURIComponent(r.machine)}`);
+      if (res && Array.isArray(res.items)) items = res.items;
+    } catch (e) {}
+  }
+
+  if (!items.length) {
+    toast(`Không có đơn hàng nào trong Kế hoạch của Máy ${r.machine} · Ca ${r.shift} · Ngày ${fd(r.report_date)}`, 'bad');
+    return;
+  }
+
+  const m = modal(`<h3>Chọn đơn từ Kế hoạch SX (${esc(r.machine)})</h3>
+    <p class="small mut">Chọn 1 đơn bên dưới để điền vào <b>SP ${S.pid + 1}</b> hiện tại, hoặc bấm "Nạp toàn bộ" để thêm tất cả các đơn của máy này:</p>
+    <div>${items.map((it, idx) => `<button type="button" class="rcard" data-pick="${idx}">
+      <div class="sp">
+        <div class="t">${idx + 1}. ĐH: ${esc(it.ma_dh)} · KH: ${esc(it.ma_kh)}</div>
+        <div class="small">Mã SP (Cột G): <b>${esc(it.ma_sp)}</b></div>
+        <div class="small mut">${esc(defVal(it.mo_ta, ''))} ${it.dai_cat ? `· Cắt: ${it.dai_cat}cm` : ''} ${it.dinh_luong ? `· ĐL: ${it.dinh_luong}g` : ''}</div>
+      </div>
+      <div class="r"><span class="badge b-approved">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) + ' cái' : 'Chọn'}</span></div>
+    </button>`).join('')}</div>
+    <div class="row end">
+      <button class="btn" data-close>Đóng</button>
+      <button class="btn pri" id="load_all_plan">Nạp toàn bộ ${items.length} đơn vào phiếu</button>
+    </div>`, true);
+
+  m.addEventListener('click', e => {
+    const pickBtn = e.target.closest('[data-pick]');
+    if (pickBtn) {
+      const it = items[+pickBtn.dataset.pick];
+      const cur = prods()[S.pid];
+      cur.ma_dh = defVal(it.ma_dh, '');
+      cur.ma_sp = defVal(it.ma_sp, '');
+      if (cur.rolls && cur.rolls[0]) {
+        cur.rolls[0].ma_kh = defVal(it.ma_kh, '');
+        if (it.ma_pe) cur.rolls[0].ma_pe = it.ma_pe;
+      }
+      if (it.dinh_luong) cur.qc.yc.dinhluong = String(it.dinh_luong);
+      cur.plan_meta = {
+        ma_kh: defVal(it.ma_kh, ''),
+        sl_ke_hoach: it.sl_ke_hoach || 0,
+        dai_cat: defVal(it.dai_cat, ''),
+        dinh_luong: defVal(it.dinh_luong, ''),
+        mo_ta: defVal(it.mo_ta, ''),
+        phuong_phap: defVal(it.phuong_phap, '')
+      };
+      markDirty();
+      m.remove();
+      renderEditor();
+      toast('Đã điền thông tin đơn hàng từ Kế hoạch ✓', 'ok');
+    }
+  });
+
+  $('#load_all_plan', m).onclick = () => {
+    S.rep.data.products = items.map(it => createProductFromPlanItem(it, S.rep.worker_name));
+    S.pid = 0;
+    markDirty();
+    m.remove();
+    renderEditor();
+    toast(`Đã nạp ${items.length} đơn hàng từ Kế hoạch ✓`, 'ok');
+  };
+}
+
 // ============================================================================
 // SỰ KIỆN & ACTIONS
 // ============================================================================
@@ -1448,8 +1845,19 @@ document.addEventListener('input', e => {
   markDirty();
 });
 
-document.addEventListener('change', e => {
+document.addEventListener('change', async e => {
   const t = e.target;
+  if (t.id === 'plan_file_in' && t.files && t.files[0]) {
+    try {
+      const parsed = await parsePlanXlsxFile(t.files[0]);
+      S.parsedPlan = parsed;
+      renderPlanPreviewBox();
+      toast(`Đã đọc file: ${parsed.totalOrders} đơn hàng trên ${parsed.machines.length} máy ✓`, 'ok');
+    } catch (err) {
+      toast('Lỗi đọc file Excel: ' + err.message, 'bad');
+    }
+    return;
+  }
   if (t.dataset && t.dataset.re && S.rep && S.view === 'edit') {
     setPath(S.rep, t.dataset.p, t.value);
     markDirty();
@@ -1484,10 +1892,11 @@ const ACT = {
   help: () => helpModal(),
   newrep: () => newRepModal(),
   open: b => openReport(+b.dataset.id),
+  pickplan: () => pickPlanItemModal(),
   editme: () => {
-    const ms = S.config.machines;
+    const ms = (S.config.machines && S.config.machines.length) ? S.config.machines : DEFAULT_OLD_MACHINES;
     const m = modal(`<h3>Thông tin của tôi</h3><label class="f"><span>Họ và tên (C01)</span><input id="en" type="text" value="${esc(S.me.name)}"></label>
-    <label class="f" style="margin-top:10px"><span>Máy cắt hay làm</span><select id="em">${ms.map(x => `<option ${x === S.me.last_machine ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+    <label class="f" style="margin-top:10px"><span>Máy cắt hay làm (Cột A)</span><select id="em">${ms.map(x => `<option ${x === S.me.last_machine ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
     <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ego">Lưu</button></div>
     <p style="margin-top:14px"><a href="#" id="esl">Đăng nhập Quản lý ca / Admin</a></p>`);
     $('#esl', m).onclick = ev => { ev.preventDefault(); m.remove(); staffLoginModal(); };
@@ -1528,17 +1937,17 @@ const ACT = {
     toast('Đã sao chép thông số máy từ đơn trước ✓', 'ok');
   },
   delprod: async () => {
-    if (!await ask('Xóa sản phẩm?', `Xóa toàn bộ dữ liệu của <b>sản phẩm ${S.pid + 1}</b> (gồm cuộn và phiếu kiểm tra)?`, 'Xóa', true)) return;
+    if (!await ask('Xóa sản phẩm?', `Xóa toàn bộ dữ liệu của <b>sản phẩm ${S.pid + 1}</b> khỏi phiếu này?`, 'Xóa', true)) return;
     prods().splice(S.pid, 1);
     S.pid = Math.max(0, S.pid - 1);
     markDirty();
     renderEditor();
   },
-  // Chuyển bước ① ② ③ ④ tức thì bằng renderStepBody()
   step: b => { S.step = +b.dataset.n; renderStepBody(); window.scrollTo({ top: 0 }); },
   addroll: () => {
     const p = prods()[S.pid];
     const r = newRoll();
+    if (p.rolls.length && p.rolls[0].ma_kh) r.ma_kh = p.rolls[0].ma_kh;
     p.rolls.push(r);
     S.rollOpen[r.id] = true;
     markDirty();
@@ -1586,7 +1995,6 @@ const ACT = {
     refreshStepTabs();
     if (S.step === 4) refreshLanLabels();
   },
-  // Chuyển Lần kiểm tra QC bằng CSS class trong 0.1ms (không vẽ lại DOM)
   lan: b => {
     S.lan = +b.dataset.i;
     $$('.lantabs .chip[data-act="lan"]').forEach((c, i) => c.classList.toggle('on', i === S.lan));
@@ -1653,13 +2061,60 @@ const ACT = {
     toast('Đã xóa', 'ok');
     staffHome();
   },
-  // Chuyển Tab Quản lý tức thì (không gọi lại /api/me làm đơ máy)
   tab: b => { S.tab = b.dataset.t; staffHome(); },
   refresh: () => staffHome(false, true),
   filter: () => { S.f = { from: $('#ff').value, to: $('#ft').value, shift: $('#fs').value, machine: $('#fm').value, status: defVal($('#fst')?.value, '') }; staffHome(false, true); },
   logout: async () => { staffLogoutLocal(); S.me = null; welcome(); api('POST', '/api/logout').catch(() => {}); },
   chpw: () => pwModal(),
   export: () => doExport(),
+  saveplan: async b => {
+    if (!S.parsedPlan) { toast('Vui lòng chọn file Excel kế hoạch trước', 'bad'); return; }
+    const planDate = $('#pl_date').value;
+    const shift = $('#pl_shift').value;
+    const syncMach = $('#pl_sync_mach')?.checked;
+    if (!planDate || !shift) { toast('Vui lòng chọn Ngày và Ca áp dụng kế hoạch', 'bad'); return; }
+    b.disabled = true; b.textContent = '⏳ Đang lưu kế hoạch…';
+    try {
+      const payload = {
+        plan_date: planDate,
+        shift: shift,
+        items: S.parsedPlan.itemsByMachine,
+        sync_machines: syncMach ? S.parsedPlan.machines : null
+      };
+      await api('POST', '/api/plans', payload);
+      if (syncMach && S.parsedPlan.machines.length) {
+        S.config.machines = S.parsedPlan.machines;
+        LocalDB.set('settings', { machines: S.config.machines, shifts: S.config.shifts });
+      }
+      S.parsedPlan = null;
+      toast(`Đã lưu kế hoạch cho Ngày ${fd(planDate)} · Ca ${shift} ✓`, 'ok');
+      plansView(true);
+    } catch (e) {
+      b.disabled = false; b.textContent = '💾 Lưu & Áp dụng Kế hoạch';
+      toast(e.message, 'bad');
+    }
+  },
+  viewplan: b => {
+    const key = b.dataset.key;
+    const plans = LocalDB.get('plans', {});
+    const pl = plans[key] || (S.cache.plans || []).find(x => `${x.plan_date}_${x.shift}` === key);
+    if (!pl || !pl.items) { toast('Không tìm thấy chi tiết kế hoạch', 'bad'); return; }
+    const entries = Object.entries(pl.items).filter(([, arr]) => arr && arr.length > 0);
+    modal(`<h3>Chi tiết Kế hoạch: Ngày ${fd(pl.plan_date)} · Ca ${esc(pl.shift)}</h3>
+      <p class="small mut">Tổng cộng ${entries.length} máy có lệnh sản xuất:</p>
+      <div style="max-height:60vh;overflow:auto">${entries.map(([mach, arr]) => `<div class="card" style="padding:10px;margin-bottom:8px">
+        <b>Máy ${esc(mach)} (${arr.length} đơn)</b>
+        <ul style="margin:6px 0 0;padding-left:18px" class="small">${arr.map(it => `<li>ĐH: <b>${esc(it.ma_dh)}</b> · KH: <b>${esc(it.ma_kh)}</b> · SP: <b>${esc(it.ma_sp)}</b> ${it.sl_ke_hoach ? `(${fmtN(it.sl_ke_hoach)} cái)` : ''}</li>`).join('')}</ul>
+      </div>`).join('')}</div>
+      <div class="row end"><button class="btn pri" data-close>Đóng</button></div>`, true);
+  },
+  delplan: async b => {
+    const d = b.dataset.date, s = b.dataset.shift;
+    if (!await ask('Xóa kế hoạch?', `Xóa kế hoạch Ngày ${fd(d)} · Ca ${esc(s)}?`, 'Xóa', true)) return;
+    await api('DELETE', `/api/plans?date=${encodeURIComponent(d)}&shift=${encodeURIComponent(s)}`);
+    toast('Đã xóa kế hoạch', 'ok');
+    plansView(true);
+  },
   useradd: () => userModal(),
   useredit: b => userModal(+b.dataset.id),
   devrename: async b => {
@@ -1716,7 +2171,7 @@ window.addEventListener('beforeunload', e => {
 });
 
 // ============================================================================
-// GIAO DIỆN QUẢN LÝ & ADMIN (PHẢN HỒI TỨC THÌ 0MS KHI CHUYỂN TAB)
+// GIAO DIỆN QUẢN LÝ & ADMIN (CÓ TAB UPLOAD KẾ HOẠCH SẢN XUẤT)
 // ============================================================================
 function defFilters() {
   const now = new Date();
@@ -1726,7 +2181,11 @@ function defFilters() {
 
 function staffShell(inner, tab) {
   const adm = isAdmin();
-  const tabs = [['pending', 'Chờ duyệt' + (S.me.pending ? `<span class="cnt" id="pend_cnt">${S.me.pending}</span>` : '<span class="cnt hide" id="pend_cnt">0</span>')], ['all', 'Tất cả phiếu']];
+  const tabs = [
+    ['pending', 'Chờ duyệt' + (S.me.pending ? `<span class="cnt" id="pend_cnt">${S.me.pending}</span>` : '<span class="cnt hide" id="pend_cnt">0</span>')],
+    ['all', 'Tất cả phiếu'],
+    ['plans', '📅 Kế hoạch SX']
+  ];
   if (adm) tabs.push(['export', '📥 Xuất Excel'], ['users', 'Tài khoản'], ['devices', 'Thiết bị'], ['settings', 'Cài đặt']);
   app.innerHTML = `<div class="top"><h1>Báo cáo cắt bao<span class="sub">${adm ? 'Admin tổng' : 'Quản lý ca'}: ${esc(S.me.name)}</span></h1><button data-act="chpw">🔑</button><button data-act="logout">Đăng xuất</button></div>
   <div class="wrap wide"><div class="nav">${tabs.map(([t, l]) => `<button class="${tab === t ? 'on' : ''}" data-act="tab" data-t="${t}">${l}</button>`).join('')}<button data-act="refresh" title="Làm mới dữ liệu">↻</button></div>${inner}</div>`;
@@ -1747,6 +2206,7 @@ async function staffHome(fromBoot = false, forceRefresh = false) {
     return boot();
   }
   const t = S.tab;
+  if (t === 'plans') return plansView(forceRefresh);
   if (t === 'export' && isAdmin()) return exportView();
   if (t === 'users' && isAdmin()) return usersView(forceRefresh);
   if (t === 'devices' && isAdmin()) return devicesView(forceRefresh);
@@ -1765,10 +2225,8 @@ async function staffHome(fromBoot = false, forceRefresh = false) {
     <label class="f"><span>Trạng thái</span><select id="fst"><option value="">Tất cả</option>${Object.entries(STAT).map(([k, v]) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <button class="btn pri" data-act="filter">Lọc</button></div></div>`;
 
-  // Vẽ khung giao diện ngay lập tức (0ms)
   staffShell(filt + '<div id="lst"><p class="mut">Đang tải…</p></div>', t);
 
-  // Hiển thị ngay dữ liệu từ Cache/LocalDB trước khi chờ mạng
   const localFiltered = LocalDB.handle('GET', '/api/reports?' + qStr).reports;
   if (localFiltered && (localFiltered.length || S.cache.reports[qStr])) {
     renderStaffReportTable(S.cache.reports[qStr] || localFiltered, t);
@@ -1794,6 +2252,91 @@ async function staffHome(fromBoot = false, forceRefresh = false) {
   }
 }
 
+// Giao diện Upload & Quản lý Kế hoạch Sản xuất
+function renderPlanPreviewBox() {
+  const box = $('#plan_parsed_box');
+  if (!box) return;
+  const p = S.parsedPlan;
+  if (!p) { box.innerHTML = ''; return; }
+  const activeMachs = Object.entries(p.itemsByMachine).filter(([, arr]) => arr && arr.length > 0);
+  const shList = S.config.shifts || [{ code: '1N1', name: 'Ca ngày' }, { code: '2D1', name: 'Ca đêm' }];
+  const hasShift = shList.some(s => s.code === p.shift);
+  const shiftOpts = [...shList, ...(hasShift ? [] : [{ code: p.shift, name: p.shift }])]
+    .map(s => `<option value="${esc(s.code)}" ${s.code === p.shift ? 'selected' : ''}>${esc(s.name)} (${esc(s.code)})</option>`).join('');
+
+  box.innerHTML = `<div class="note ok" style="margin-top:12px">
+    <b>✓ Đã đọc thành công Sheet "${esc(p.sheetName)}":</b> Phát hiện <b>${p.totalOrders} đơn hàng</b> phân bổ trên <b>${activeMachs.length} máy</b> (Tổng số máy ở Cột A: ${p.machines.length} máy từ <b>${esc(p.machines[0] || '')}</b> đến <b>${esc(p.machines[p.machines.length - 1] || '')}</b>).
+  </div>
+  <div class="grid g2" style="margin-top:10px">
+    <label class="f"><span>Ngày áp dụng kế hoạch (Ô D1)</span><input type="date" id="pl_date" value="${esc(p.plan_date)}"></label>
+    <label class="f"><span>Ca làm việc áp dụng (Ô C1)</span><select id="pl_shift">${shiftOpts}</select></label>
+  </div>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:600;cursor:pointer">
+    <input type="checkbox" id="pl_sync_mach" checked style="width:20px;height:20px">
+    <span>Cập nhật luôn danh sách ${p.machines.length} máy (Mã máy cũ Cột A) vào hệ thống cho công nhân chọn</span>
+  </label>
+  <div style="margin-top:12px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fafbfc">
+    <table class="rt"><thead><tr><th>Máy (Cột A)</th><th>Đơn hàng (Cột C)</th><th>Mã KH (Cột F)</th><th>Mã SP cũ (Cột G)</th><th class="num">SL Kế hoạch</th></tr></thead><tbody>
+    ${activeMachs.flatMap(([m, arr]) => arr.map(it => `<tr><td data-l="Máy"><b>${esc(m)}</b></td><td data-l="Đơn hàng">${esc(it.ma_dh)}</td><td data-l="Mã KH">${esc(it.ma_kh)}</td><td data-l="Mã SP"><b>${esc(it.ma_sp)}</b></td><td class="num" data-l="SL KH">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) : '—'}</td></tr>`)).join('')}
+    </tbody></table>
+  </div>
+  <button class="btn pri lg" style="margin-top:12px;width:100%" data-act="saveplan">💾 Lưu & Áp dụng Kế hoạch này</button>`;
+}
+
+function renderSavedPlansList(plans) {
+  const el = $('#plans_lst');
+  if (!el) return;
+  if (!plans || !plans.length) {
+    el.innerHTML = `<div class="note info">Chưa có kế hoạch sản xuất nào được tải lên.</div>`;
+    return;
+  }
+  el.innerHTML = `<table class="rt"><thead><tr><th>Ngày SX</th><th>Ca</th><th class="num">Số máy có lệnh</th><th class="num">Tổng số đơn</th><th>Người tải lên</th><th>Cập nhật lúc</th><th></th></tr></thead><tbody>
+    ${plans.map(pl => {
+      const key = `${pl.plan_date}_${pl.shift}`;
+      return `<tr>
+        <td data-l="Ngày SX"><b>${fd(pl.plan_date)}</b></td>
+        <td data-l="Ca"><span class="badge b-approved">${esc(pl.shift)}</span></td>
+        <td class="num" data-l="Số máy">${pl.n_machines || 0} máy</td>
+        <td class="num" data-l="Tổng số đơn"><b>${pl.n_orders || 0} đơn</b></td>
+        <td data-l="Người tải">${esc(defVal(pl.updated_by, ''))}</td>
+        <td data-l="Cập nhật">${esc(toVNDisplay(pl.updated_at).full)}</td>
+        <td>
+          <button class="btn sm" data-act="viewplan" data-key="${esc(key)}">Xem</button>
+          <button class="btn sm bad" data-act="delplan" data-date="${esc(pl.plan_date)}" data-shift="${esc(pl.shift)}">Xóa</button>
+        </td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+async function plansView(force = false) {
+  staffShell(`<div class="card">
+    <h3>📅 Upload file Kế hoạch sản xuất (.xlsx)</h3>
+    <p class="small mut">Chọn file <b>KE HOACH SAN XUAT.xlsx</b>. Hệ thống sẽ tự động lấy <b>Mã máy cũ (Cột A)</b>, <b>Đơn hàng (Cột C)</b>, <b>Mã KH (Cột F)</b> và <b>Mã SP cũ (Cột G)</b> để tạo sẵn sườn cho công nhân khi vào đúng Ca & Ngày đó.</p>
+    <label class="upbox" style="margin-top:10px">
+      <input type="file" id="plan_file_in" accept=".xlsx" class="hide">
+      <div style="font-size:18px;font-weight:700;color:var(--pri)">📂 Bấm vào đây để chọn file KE HOACH SAN XUAT.xlsx</div>
+      <div class="small mut" style="margin-top:4px">Đọc trực tiếp ngay trên trình duyệt – tự nhận diện Ca (C1) và Ngày (D1)</div>
+    </label>
+    <div id="plan_parsed_box"></div>
+  </div>
+  <h3 style="margin:16px 0 8px">Danh sách Kế hoạch đã tải lên</h3>
+  <div id="plans_lst"><p class="mut">Đang tải…</p></div>`, 'plans');
+
+  if (S.parsedPlan) renderPlanPreviewBox();
+
+  const localPlans = LocalDB.handle('GET', '/api/plans').plans;
+  if (localPlans && localPlans.length) renderSavedPlansList(localPlans);
+
+  try {
+    const r = await api('GET', '/api/plans');
+    if (r && Array.isArray(r.plans)) {
+      S.cache.plans = r.plans;
+      if (S.view === 'staff' && S.tab === 'plans') renderSavedPlansList(r.plans);
+    }
+  } catch (e) {}
+}
+
 function exportView() {
   const f = S.ef ? S.ef : (S.ef = defFilters());
   staffShell(`<div class="card" style="max-width:720px"><h3>Xuất file Excel sản lượng cắt bao</h3>
@@ -1810,7 +2353,6 @@ async function doExport() {
   const btn = $('#xbtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang tổng hợp dữ liệu…'; }
   try {
-    // Gọi full=1 để lấy toàn bộ dữ liệu chi tiết chỉ trong 1 lần gọi API duy nhất
     const q = new URLSearchParams({ full: '1', from: $('#xf').value, to: $('#xt').value, shift: $('#xs').value, machine: $('#xm').value, status: $('#xst').value });
     S.ef = { from: $('#xf').value, to: $('#xt').value };
     const r = await api('GET', '/api/reports?' + q);
@@ -1856,8 +2398,8 @@ async function doExport() {
     const h1 = ['Máy', 'Ngày', 'Ca', 'Mã đơn hàng', 'Mã sản phẩm', 'Mã C01', 'Tên C01', 'Mã C02', 'Tên C02', 'Mã C03', 'Tên C03', 'Mã C04', 'Tên C04', 'Số cái cắt được', 'Giờ bắt đầu', 'Giờ kết thúc', 'Dừng: thay cuộn', 'Dừng: đổi hàng', 'Dừng: máy hư', 'Dừng: chờ hàng', 'Dừng: khác', 'Lý do khác', 'Tốc độ cắt', 'Tốc độ may', 'TG dao cắt chỉ', 'TG phóng PE', 'TG hàn PE', 'TG rút PE', 'Khoảng cách 2 bao', 'Nhiệt cắt bao', 'Nhiệt cắt chỉ', 'Nhiệt hàn PE', 'Người nhập', 'Trạng thái phiếu', 'Quản lý duyệt', 'Số mục KT lỗi'];
     const h2 = ['Máy', 'Ngày', 'Ca', 'Mã đơn hàng', 'Mã sản phẩm', 'Mã KH', 'Cuộn số / Máy số', 'Ca & ngày sản xuất', 'Số kg/mét đầu cuộn', 'Mã PE', 'Cuộn số / Máy thổi', 'Ca, ngày thổi', 'Khổ bao (cm)', 'Chiều dài cắt sau may (cm)', 'ĐL 10 cái đầu cuộn (g)', 'Số cái cắt được', 'Phế liệu có đánh dấu (kg)', 'Phế liệu không đánh dấu (cái)', 'Râu bỏ', 'Râu đếm', 'QL xác nhận cắt hàng loạt', 'Người nhập'];
     const blob = buildXlsxBlob([
-      { name: 'Sản lượng cắt bao', headers: h1, rows: rows1, widths: [7, 12, 8, 18, 18, 10, 16, 10, 16, 10, 16, 10, 16, 14, 12, 12, 11, 11, 11, 11, 11, 16, 11, 11, 13, 13, 13, 13, 14, 13, 13, 13, 16, 14, 20, 14] },
-      { name: 'Chi tiết cuộn', headers: h2, rows: rows2, widths: [7, 12, 8, 16, 16, 12, 14, 14, 12, 12, 14, 14, 11, 13, 13, 13, 13, 13, 9, 9, 13, 16] }
+      { name: 'Sản lượng cắt bao', headers: h1, rows: rows1, widths: [10, 12, 8, 18, 18, 10, 16, 10, 16, 10, 16, 10, 16, 14, 12, 12, 11, 11, 11, 11, 11, 16, 11, 11, 13, 13, 13, 13, 14, 13, 13, 13, 16, 14, 20, 14] },
+      { name: 'Chi tiết cuộn', headers: h2, rows: rows2, widths: [10, 12, 8, 16, 16, 12, 14, 14, 12, 12, 14, 14, 11, 13, 13, 13, 13, 13, 9, 9, 13, 16] }
     ]);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1899,7 +2441,7 @@ function userModal(id) {
   const m = modal(`<h3>${u ? 'Sửa tài khoản' : 'Thêm tài khoản'}</h3>
   <label class="f"><span>Tên đăng nhập (chữ thường, không dấu)</span><input id="uu" type="text" autocapitalize="none" value="${u ? esc(u.username) : ''}" ${u ? 'disabled' : ''}></label>
   <label class="f" style="margin-top:8px"><span>Họ tên</span><input id="un" type="text" value="${u ? esc(u.full_name) : ''}"></label>
-  <label class="f" style="margin-top:8px"><span>Vai trò</span><select id="ur"><option value="manager" ${u && u.role === 'manager' ? 'selected' : ''}>Quản lý ca (xem, duyệt, trả lại)</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>Admin tổng (toàn quyền, xuất Excel)</option></select></label>
+  <label class="f" style="margin-top:8px"><span>Vai trò</span><select id="ur"><option value="manager" ${u && u.role === 'manager' ? 'selected' : ''}>Quản lý ca (xem, duyệt, trả lại, up kế hoạch)</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>Admin tổng (toàn quyền, xuất Excel)</option></select></label>
   <label class="f" style="margin-top:8px"><span>${u ? 'Mật khẩu mới (bỏ trống nếu không đổi)' : 'Mật khẩu (tối thiểu 6 ký tự)'}</span><input id="up" type="text" autocomplete="off"></label>
   ${u ? `<label class="f" style="margin-top:8px"><span>Trạng thái</span><select id="ua"><option value="1" ${u.active ? 'selected' : ''}>Hoạt động</option><option value="0" ${u.active ? '' : 'selected'}>Khóa tài khoản</option></select></label>` : ''}
   <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ugo">Lưu</button></div>`);
@@ -1959,7 +2501,7 @@ function settingsView() {
   const sheetLink = S.config.sheet_url ? `<div class="note info small" style="margin-bottom:12px">📊 File Google Sheets lưu trữ dữ liệu: <a href="${esc(S.config.sheet_url)}" target="_blank"><b>Mở bảng dữ liệu Google Sheets ↗</b></a></div>` : '';
   staffShell(`<div class="card" style="max-width:720px"><h3>Cài đặt</h3>
   ${sheetLink}
-  <label class="f"><span>Danh sách máy cắt (mỗi dòng 1 máy)</span><textarea id="sm" style="min-height:140px">${esc(S.config.machines.join('\n'))}</textarea></label>
+  <label class="f"><span>Danh sách máy cắt (Mã máy cũ Cột A – mỗi dòng 1 máy)</span><textarea id="sm" style="min-height:160px">${esc(S.config.machines.join('\n'))}</textarea></label>
   <label class="f" style="margin-top:10px"><span>Các ca (mỗi dòng: MÃ|Tên ca). Dòng 1 = ca ngày (07h–19h), dòng 2 = ca đêm (19h–07h)</span><textarea id="ss">${esc(S.config.shifts.map(s => s.code + PIPE + s.name).join('\n'))}</textarea></label>
   <button class="btn pri" style="margin-top:12px" data-act="savesettings">Lưu cài đặt</button></div>`, 'settings');
 }
