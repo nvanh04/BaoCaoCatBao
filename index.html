@@ -476,41 +476,53 @@ const LocalDB = {
   }
 };
 
+// Dán link Web App Google Apps Script của bạn vào đây:
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyubgmYrZcqWjUIqs1XKei78etwWvQ2RDxiYPN1fp8UE4x0eKNa9sJceYK1EnQ6c9fD/exec';
+
 async function api(method, url, body, raw) {
-  const h = { 'Content-Type': 'application/json' };
-  if (S.token) {
-    h.Authorization = 'Bearer ' + S.token;
-  } else if (S.deviceId) {
-    h['X-Device-Id'] = S.deviceId;
-    const savedDev = (LocalDB.get('devices', {})[S.deviceId]) || {};
-    const dName = localStorage.getItem('cb_dev_name') || savedDev.name || '';
-    const dMach = localStorage.getItem('cb_dev_machine') || savedDev.last_machine || '';
-    if (dName) h['X-Device-Name'] = encodeURIComponent(dName);
-    if (dMach) h['X-Device-Machine'] = encodeURIComponent(dMach);
-  }
+  const savedDev = (LocalDB.get('devices', {})[S.deviceId]) || {};
+  const dName = localStorage.getItem('cb_dev_name') || savedDev.name || '';
+  const dMach = localStorage.getItem('cb_dev_machine') || savedDev.last_machine || '';
+
+  // Đóng gói mọi request (GET, POST, PUT, DELETE) vào 1 lệnh POST text/plain để vượt CORS của Google
+  const payload = {
+    method: method,
+    url: url,
+    body: body || {},
+    token: S.token || '',
+    deviceId: S.deviceId || '',
+    deviceName: dName,
+    deviceMachine: dMach
+  };
+
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    const r = await fetch(url, { method, headers: h, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal });
+    const timer = setTimeout(() => ctrl.abort(), 15000); // Tăng timeout lên 15s cho Google Sheets
+    const r = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
     clearTimeout(timer);
-    const ct = defVal(r.headers.get('content-type'), '');
-    if (!raw && !ct.includes('application/json')) {
-      return LocalDB.handle(method, url, body);
-    }
-    if (raw) {
-      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(defVal(j.error, 'Lỗi ' + r.status)); }
-      return r;
-    }
+
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      if (r.status === 401 && S.token) staffLogoutLocal();
-      const e = new Error(defVal(j.error, 'Lỗi ' + r.status));
+    const status = j._status || r.status;
+
+    if (status >= 400 || !r.ok) {
+      if (status === 401 && S.token) staffLogoutLocal();
+      const e = new Error(defVal(j.error, 'Lỗi ' + status));
       e.data = j;
       throw e;
     }
+    // Đồng bộ bản lưu dự phòng vào LocalDB trên máy
+    try { LocalDB.handle(method, url, body); } catch (_) {}
     return j;
   } catch (e) {
-    if (e.data || String(e.message).includes('Sai tên') || String(e.message).includes('Mật khẩu') || String(e.message).includes('Đã tồn tại') || String(e.message).includes('Không tìm thấy')) throw e;
+    if (e.data || String(e.message).includes('Sai tên') || String(e.message).includes('Mật khẩu') || String(e.message).includes('Đã tồn tại') || String(e.message).includes('Không tìm thấy') || String(e.message).includes('Phiếu đã duyệt')) {
+      throw e;
+    }
+    // Nếu rớt mạng hoàn toàn thì mới chạy chế độ Offline tạm thời
     return LocalDB.handle(method, url, body);
   }
 }
