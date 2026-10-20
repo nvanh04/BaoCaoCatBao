@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f5fa8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Báo cáo cắt bao</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f5fa8'/%3E%3Cpath d='M18 20h28l-3 26H21z' fill='none' stroke='%23fff' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 20l6-6h16l6 6' fill='none' stroke='%23fff' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f5fa8'/%3E%3Cpath d='M18 20h28l-3 26H21z' fill='none' stroke='%23fff' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M18 20l6-6h16l6 6' fill='none' stroke='%23fff' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 :root{--pri:#0f5fa8;--pri-d:#0b4a85;--pri-l:#e6f0fa;--ok:#15803d;--ok-l:#e3f4e8;--warn:#b45309;--warn-l:#fdf0dc;--bad:#b91c1c;--bad-l:#fbe7e7;--bg:#f2f4f7;--card:#fff;--line:#d5dbe3;--txt:#1b2430;--mut:#66727f;--r:12px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -59,7 +59,8 @@ fieldset>legend{font-weight:700;font-size:14px;color:var(--pri);padding:0 6px}
 .note.ok{background:var(--ok-l);color:#0d5a2b;border:1px solid #b5e0c3}
 .note.info{background:var(--pri-l);color:#0b3d6e;border:1px solid #bcd6ee}
 .note.warn{background:var(--warn-l);color:#7c3705;border:1px solid #f5d4a4}
-.rcard{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:center}
+.rcard-wrap{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.rcard{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;gap:10px;align-items:center}
 .rcard:hover{border-color:var(--pri)}
 .rcard .t{font-weight:700;font-size:16px}
 .rcard .r{text-align:right;flex-shrink:0}
@@ -106,7 +107,6 @@ table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 .lantabs{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
 .lantabs .chip{flex:0 0 auto}
 .qact{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
-/* Chế độ xem tất cả các lần kiểm tra trên điện thoại giống máy tính */
 .qc-all-cols .qcells{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
 .qc-all-cols .qcell{display:block!important;min-width:165px;background:#f8fafc;padding:6px;border-radius:8px;border:1px solid #e2e8f0}
 .savebar{position:fixed;left:0;right:0;bottom:0;z-index:35;background:#fff;border-top:1px solid var(--line);padding:8px 12px;padding-bottom:max(8px,env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(0,0,0,.08)}
@@ -182,11 +182,7 @@ function uid(n = 16) {
   return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ============================================================================
-// BỘ XỬ LÝ THỜI GIAN CHUẨN GIỜ VIỆT NAM (UTC+7)
-// ============================================================================
 const VN_OFFSET_MS = 7 * 3600 * 1000;
-
 function vnParts(d = new Date()) {
   const vn = new Date(d.getTime() + VN_OFFSET_MS);
   return {
@@ -300,7 +296,7 @@ const S = {
 };
 
 // ============================================================================
-// BỘ ĐỌC FILE EXCEL KẾ HOẠCH (.XLSX) TRỰC TIẾP TRÊN TRÌNH DUYỆT (CHUẨN XÁC)
+// BỘ ĐỌC FILE EXCEL KẾ HOẠCH (.XLSX)
 // ============================================================================
 async function unzipXlsx(arrayBuffer) {
   const buf = new Uint8Array(arrayBuffer);
@@ -353,18 +349,14 @@ function colLettersToIndex(letters) {
 
 function parseExcelDateVal(rawVal, sheetName) {
   const s = String(rawVal || '').trim();
-  // 1. Số serial của Excel (VD: 46315)
   if (/^\d{5}(\.\d+)?$/.test(s)) {
     const serial = Math.floor(Number(s));
     const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
     return `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}`;
   }
-  // 2. Định dạng yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  // 3. Định dạng dd/mm/yyyy hoặc dd-mm-yyyy
   const mVN = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec(s);
   if (mVN) return `${mVN[3]}-${pad(mVN[2])}-${pad(mVN[1])}`;
-  // 4. Suy luận từ tên Sheet dạng N(20) hoặc D(20) nếu có
   const mSh = /[ND]\s*\(\s*(\d{1,2})\s*\)/i.exec(String(sheetName || ''));
   if (mSh) {
     const p = vnParts();
@@ -378,7 +370,6 @@ async function parsePlanXlsxFile(file) {
   const files = await unzipXlsx(ab);
   const parser = new DOMParser();
 
-  // 1. Đọc bảng chuỗi dùng chung (sharedStrings.xml)
   const sharedStrings = [];
   if (files['xl/sharedStrings.xml']) {
     const ssDoc = parser.parseFromString(files['xl/sharedStrings.xml'], 'application/xml');
@@ -391,7 +382,6 @@ async function parsePlanXlsxFile(file) {
     }
   }
 
-  // 2. Lấy tên Sheet đầu tiên và đường dẫn XML chính xác từ workbook.xml & workbook.xml.rels
   let sheetName = 'Sheet1';
   let targetXmlPath = 'xl/worksheets/sheet1.xml';
   if (files['xl/workbook.xml']) {
@@ -399,7 +389,7 @@ async function parsePlanXlsxFile(file) {
     const shNode = wbDoc.getElementsByTagName('sheet')[0];
     if (shNode) {
       if (shNode.getAttribute('name')) sheetName = shNode.getAttribute('name');
-      const rId = shNode.getAttribute('r:id') || shNode.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+      const rId = shNode.getAttribute('r:id') || shNode.getAttributeNS('[http://schemas.openxmlformats.org/officeDocument/2006/relationships](http://schemas.openxmlformats.org/officeDocument/2006/relationships)', 'id');
       if (rId && files['xl/_rels/workbook.xml.rels']) {
         const relDoc = parser.parseFromString(files['xl/_rels/workbook.xml.rels'], 'application/xml');
         const rels = relDoc.getElementsByTagName('Relationship');
@@ -453,7 +443,6 @@ async function parsePlanXlsxFile(file) {
 
   const cellVal = (r, c) => (grid[r] && grid[r][c]) ? grid[r][c].val : '';
 
-  // Nhận diện Ca làm việc ở C1 (row 1, col 2) hoặc từ tên Sheet N(...) / D(...)
   let shift = cellVal(1, 2);
   if (!shift) {
     if (/^N\b|CA\s*NG/i.test(sheetName)) shift = '1N1';
@@ -462,29 +451,28 @@ async function parsePlanXlsxFile(file) {
   }
   const planDate = parseExcelDateVal(cellVal(1, 3), sheetName);
 
-  // Duyệt từ dòng 3 trở đi để lấy danh sách máy (Cột A = index 0) và các đơn hàng
   const machinesSet = new Set();
   const itemsByMachine = {};
   let totalOrders = 0;
   const maxRow = Math.max(0, ...Object.keys(grid).map(Number));
 
   for (let r = 3; r <= maxRow; r++) {
-    const mayCu = cellVal(r, 0);     // Cột A: MÁY CŨ (VD: 1.CA.CN, 1.CA01)
+    const mayCu = cellVal(r, 0);
     if (!mayCu || mayCu.toUpperCase() === 'MÁY CŨ') continue;
     machinesSet.add(mayCu);
     if (!itemsByMachine[mayCu]) itemsByMachine[mayCu] = [];
 
-    const maDh = cellVal(r, 2);      // Cột C: ĐƠN HÀNG
-    const lenhSx = cellVal(r, 3);    // Cột D: LỆNH SX
-    const maKh = cellVal(r, 5);      // Cột F: Mã KH
-    const maSp = cellVal(r, 6);      // Cột G: Mã SP (mã SP cũ)
-    const loaiBao = cellVal(r, 8);   // Cột I: Loại bao
-    const moTa = cellVal(r, 12);     // Cột M: Mô tả loại bao & chiều dài cắt
-    const daiCat = cellVal(r, 13);   // Cột N: Chiều dài cắt SAU MAY (cm)
-    const dinhLuong = cellVal(r, 14);// Cột O: Định lượng (g/cái)
-    const maPe = cellVal(r, 15);     // Cột P: Mã PE ERP
-    const slKeHoach = cellVal(r, 20);// Cột U: Số lượng kế hoạch
-    const phuongPhap = cellVal(r, 21);// Cột V: Phương pháp thực hiện
+    const maDh = cellVal(r, 2);
+    const lenhSx = cellVal(r, 3);
+    const maKh = cellVal(r, 5);
+    const maSp = cellVal(r, 6);
+    const loaiBao = cellVal(r, 8);
+    const moTa = cellVal(r, 12);
+    const daiCat = cellVal(r, 13);
+    const dinhLuong = cellVal(r, 14);
+    const maPe = cellVal(r, 15);
+    const slKeHoach = cellVal(r, 20);
+    const phuongPhap = cellVal(r, 21);
 
     if (maDh || maSp) {
       itemsByMachine[mayCu].push({
@@ -514,7 +502,6 @@ async function parsePlanXlsxFile(file) {
   };
 }
 
-// Tạo sản phẩm từ 1 dòng kế hoạch (sườn gợi ý đầy đủ cho công nhân)
 function createProductFromPlanItem(it, workerName) {
   const p = newProduct();
   p.ma_dh = defVal(it.ma_dh, '');
@@ -537,16 +524,17 @@ function createProductFromPlanItem(it, workerName) {
   return p;
 }
 
-function getLocalPlanItems(date, shift, machine) {
+function getLocalPlanItems(date, shift, machine = null) {
   const plans = LocalDB.get('plans', {});
   const key = `${date}_${shift}`;
   const plan = plans[key];
-  if (!plan || !plan.items) return [];
-  return plan.items[String(machine)] || [];
+  if (!plan || !plan.items) return machine ? [] : {};
+  if (machine) return plan.items[String(machine)] || [];
+  return plan.items;
 }
 
 // ============================================================================
-// DATABASE OFFLINE DỰ PHÒNG ĐẦY ĐỦ (LOCAL STORAGE)
+// DATABASE OFFLINE LOCAL STORAGE
 // ============================================================================
 const LocalDB = {
   get(k, def) {
@@ -592,10 +580,12 @@ const LocalDB = {
     if (p === '/api/me') return getMeObj();
 
     if (p === '/api/plans' && method === 'GET') {
-      if (q.date && q.shift && q.machine) {
+      if (q.date && q.shift) {
         const key = `${q.date}_${q.shift}`;
         const pl = plans[key];
-        return { items: (pl && pl.items && pl.items[q.machine]) ? pl.items[q.machine] : [] };
+        const map = (pl && pl.items) ? pl.items : {};
+        if (q.machine) return { items: map[q.machine] || [] };
+        return { planMap: map };
       }
       const list = Object.values(plans).sort((a, b) => String(b.plan_date).localeCompare(String(a.plan_date)));
       return { plans: list };
@@ -742,6 +732,13 @@ const LocalDB = {
         return { ok: true };
       }
       if (method === 'DELETE') {
+        // Kiểm tra quyền xóa LocalDB
+        if (r.status === 'approved' && !isAdmin()) {
+          throw new Error('Phiếu đã duyệt không thể xóa!');
+        }
+        if (isWorker() && r.status !== 'draft') {
+          throw new Error('Công nhân chỉ được xóa phiếu đang điền!');
+        }
         reports.splice(idx, 1);
         this.set('reports', reports);
         return { ok: true };
@@ -802,9 +799,9 @@ const LocalDB = {
 };
 
 // ============================================================================
-// KẾT NỐI GOOGLE APPS SCRIPT (ĐỒNG BỘ CACHE THÔNG MINH)
+// KẾT NỐI API
 // ============================================================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyubgmYrZcqWjUIqs1XKei78etwWvQ2RDxiYPN1fp8UE4x0eKNa9sJceYK1EnQ6c9fD/exec';
+const GAS_URL = '[https://script.google.com/macros/s/AKfycbyubgmYrZcqWjUIqs1XKei78etwWvQ2RDxiYPN1fp8UE4x0eKNa9sJceYK1EnQ6c9fD/exec](https://script.google.com/macros/s/AKfycbyubgmYrZcqWjUIqs1XKei78etwWvQ2RDxiYPN1fp8UE4x0eKNa9sJceYK1EnQ6c9fD/exec)';
 
 function syncToLocalMirror(method, url, body, res) {
   try {
@@ -858,6 +855,12 @@ function upsertLocalReport(rep) {
   LocalDB.set('reports', localReps);
 }
 
+function removeLocalReport(id) {
+  const localReps = LocalDB.get('reports', []).filter(x => Number(x.id) !== Number(id));
+  LocalDB.set('reports', localReps);
+  localStorage.removeItem('bk_' + id);
+}
+
 async function api(method, url, body) {
   const savedDev = (LocalDB.get('devices', {})[S.deviceId]) || {};
   const dName = localStorage.getItem('cb_dev_name') || savedDev.name || '';
@@ -907,7 +910,7 @@ async function api(method, url, body) {
 }
 
 // ============================================================================
-// UI HELPERS (TOAST, MODAL, EXCEL GENERATOR)
+// UI HELPERS
 // ============================================================================
 function toast(msg, type = '') {
   $$('.toast').forEach(el => el.remove());
@@ -976,7 +979,7 @@ function makeZip(files) {
     localParts.push(lh, db);
     const ch = new Uint8Array(46 + nb.length), cv = new DataView(ch.buffer);
     cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true);
-    cv.setUint16(10, 0, true); cv.setUint16(12, 0, true); cv.setUint16(14, 0x21, true); cv.setUint32(16, crc, true); cv.setUint32(20, len, true); cv.setUint32(24, len, true);
+    cv.setUint16(10, 0, true); cv.setUint16(12, 0, true); cv.setUint16(14, 0x21, true); cv.setUint32(16, crc, true); cv.setUint32(20, len, true); cv.setUint24(24, len, true);
     cv.setUint16(28, nb.length, true); cv.setUint16(30, 0, true); cv.setUint16(32, 0, true); cv.setUint16(34, 0, true); cv.setUint16(36, 0, true);
     cv.setUint32(38, 0, true); cv.setUint32(42, offset, true); ch.set(nb, 46);
     centralParts.push(ch);
@@ -985,19 +988,19 @@ function makeZip(files) {
   const cSize = centralParts.reduce((a, b) => a + b.length, 0);
   const eocd = new Uint8Array(22), ev = new DataView(eocd.buffer);
   ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, Object.keys(files).length, true); ev.setUint16(10, Object.keys(files).length, true);
-  ev.setUint32(12, cSize, true); ev.setUint32(16, offset, true);
+  ev.setUint32(12, cSize, true); ev.setUint16(16, offset, true);
   return new Blob([...localParts, ...centralParts, eocd], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 const colName = n => { let s = '', k = n + 1; while (k) { let r = (k - 1) % 26; s = String.fromCharCode(65 + r) + s; k = Math.floor((k - 1) / 26); } return s; };
 const xmlEsc = s => String(s ?? '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 function buildXlsxBlob(sheets) {
-  const ct = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'];
+  const ct = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="[http://schemas.openxmlformats.org/package/2006/content-types](http://schemas.openxmlformats.org/package/2006/content-types)"><Default ContentType="application/vnd.openxmlformats-package.relationships+xml" Extension="rels"/><Default ContentType="application/xml" Extension="xml"/><Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" PartName="/xl/workbook.xml"/><Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" PartName="/xl/styles.xml"/>'];
   const wbSheets = [], wbRels = [], files = {};
   sheets.forEach((sh, idx) => {
     const i = idx + 1;
-    ct.push(`<Override PartName="/xl/worksheets/sheet${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`);
+    ct.push(`<Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" PartName="/xl/worksheets/sheet${i}.xml"/>`);
     wbSheets.push(`<sheet name="${xmlEsc(sh.name)}" sheetId="${i}" r:id="rId${i}"/>`);
-    wbRels.push(`<Relationship Id="rId${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i}.xml"/>`);
+    wbRels.push(`<Relationship Id="rId${i}" Target="worksheets/sheet${i}.xml" Type="[http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet](http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet)"/>`);
     const cols = sh.widths.map((w, j) => `<col min="${j + 1}" max="${j + 1}" width="${w}" customWidth="1"/>`).join('');
     const rows = [`<row r="1" ht="32" customHeight="1">${sh.headers.map((h, j) => `<c r="${colName(j)}1" s="1" t="inlineStr"><is><t>${xmlEsc(h)}</t></is></c>`).join('')}</row>`];
     sh.rows.forEach((row, ri) => {
@@ -1012,19 +1015,19 @@ function buildXlsxBlob(sheets) {
       rows.push(`<row r="${rNum}">${cs}</row>`);
     });
     const last = Math.max(sh.rows.length + 1, 2);
-    files[`xl/worksheets/sheet${i}.xml`] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A1:${colName(sh.headers.length - 1)}${last}"/></worksheet>`;
+    files[`xl/worksheets/sheet${i}.xml`] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="[http://schemas.openxmlformats.org/spreadsheetml/2006/main](http://schemas.openxmlformats.org/spreadsheetml/2006/main)"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A1:${colName(sh.headers.length - 1)}${last}"/></worksheet>`;
   });
   ct.push('</Types>');
   files['[Content_Types].xml'] = ct.join('');
-  files['_rels/.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
-  files['xl/workbook.xml'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${wbSheets.join('')}</sheets></workbook>`;
-  files['xl/_rels/workbook.xml.rels'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${wbRels.join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
-  files['xl/styles.xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0F5FA8"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  files['_rels/.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="[http://schemas.openxmlformats.org/package/2006/relationships](http://schemas.openxmlformats.org/package/2006/relationships)"><Relationship Id="rId1" Target="xl/workbook.xml" Type="[http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument](http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument)"/></Relationships>';
+  files['xl/workbook.xml'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="[http://schemas.openxmlformats.org/spreadsheetml/2006/main](http://schemas.openxmlformats.org/spreadsheetml/2006/main)" xmlns:r="[http://schemas.openxmlformats.org/officeDocument/2006/relationships](http://schemas.openxmlformats.org/officeDocument/2006/relationships)"><sheets>${wbSheets.join('')}</sheets></workbook>`;
+  files['xl/_rels/workbook.xml.rels'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="[http://schemas.openxmlformats.org/package/2006/relationships](http://schemas.openxmlformats.org/package/2006/relationships)">${wbRels.join('')}<Relationship Id="rId${sheets.length + 1}" Target="styles.xml" Type="[http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles](http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles)"/></Relationships>`;
+  files['xl/styles.xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="[http://schemas.openxmlformats.org/spreadsheetml/2006/main](http://schemas.openxmlformats.org/spreadsheetml/2006/main)"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0F5FA8"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   return makeZip(files);
 }
 
 // ============================================================================
-// KHỞI ĐỘNG TỨC THÌ (GỘP 1 API BOOTSTRAP + HIỂN THỊ CACHE 0MS)
+// KHỞI ĐỘNG
 // ============================================================================
 async function boot() {
   S.deviceId = defVal(localStorage.getItem('cb_dev'), '');
@@ -1131,11 +1134,15 @@ function staffLoginModal() {
 function renderWorkerList(reports) {
   const el = $('#lst');
   if (!el) return;
-  el.innerHTML = reports.length ? reports.map(x => `<button class="rcard" data-act="open" data-id="${x.id}">
-    <div class="sp"><div class="t">Máy ${esc(x.machine)} · ${esc(x.shift)}</div><div class="mut">${fd(x.report_date)} · ${x.n_products} sản phẩm · ${esc(x.worker_name)}</div>
-    ${x.status === 'rejected' ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(x.manager_note)}</div>` : ''}</div>
-    <div class="r">${badge(x.status)}<div class="small mut" style="margin-top:4px">${fmtN(x.total)} cái</div></div></button>`).join('')
-    : '<div class="note info">Chưa có phiếu nào. Bấm nút xanh ở trên để tạo phiếu cho ca làm việc.</div>';
+  el.innerHTML = reports.length ? reports.map(x => `<div class="rcard-wrap">
+    <button class="rcard" data-act="open" data-id="${x.id}">
+      <div class="sp"><div class="t">Máy ${esc(x.machine)} · ${esc(x.shift)}</div><div class="mut">${fd(x.report_date)} · ${x.n_products} sản phẩm · ${esc(x.worker_name)}</div>
+      ${x.status === 'rejected' ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(x.manager_note)}</div>` : ''}</div>
+      <div class="r">${badge(x.status)}<div class="small mut" style="margin-top:4px">${fmtN(x.total)} cái</div></div>
+    </button>
+    ${x.status === 'draft' ? `<button class="btn bad sm" data-act="delrep_list" data-id="${x.id}" title="Xóa phiếu đang điền này" style="flex:0 0 auto;min-height:50px">🗑</button>` : ''}
+  </div>`).join('')
+  : '<div class="note info">Chưa có phiếu nào. Bấm nút xanh ở trên để tạo phiếu cho ca làm việc.</div>';
 }
 
 async function workerHome(fromBoot = false) {
@@ -1161,7 +1168,7 @@ function newRepModal() {
   const d = defaults(), sh = S.config.shifts, ms = (S.config.machines && S.config.machines.length) ? S.config.machines : DEFAULT_OLD_MACHINES;
   const last = S.me.last_machine && ms.includes(S.me.last_machine) ? S.me.last_machine : ms[0];
   const m = modal(`<h3>Tạo phiếu mới</h3>
-  <div class="note info">Hệ thống tự tính <b>Ngày</b> và <b>Ca</b> theo giờ Việt Nam (07h–19h: <b>1N1</b>, 19h–07h: <b>2D1</b>). Nếu đã có <b>Kế hoạch SX</b> cho đúng Ngày/Ca/Máy, phiếu sẽ tự động nạp sẵn sườn Đơn hàng, Mã KH và Mã SP.</div>
+  <div class="note info">Hệ thống tự tính <b>Ngày</b> và <b>Ca</b> theo giờ Việt Nam. Nếu đúng Ngày/Ca/Máy có trong <b>Kế hoạch SX</b>, phiếu sẽ nạp sẵn các đơn hàng làm sườn.</div>
   <label class="f"><span>Ngày sản xuất</span><input id="nd" type="date" value="${d.date}"></label>
   <div style="margin-top:10px"><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span>
    <div class="seg neutral" id="ns" style="margin-top:3px">${sh.map(s => `<button type="button" class="${s.code === d.shift ? 'on' : ''}" data-code="${esc(s.code)}">${esc(s.name)}<br><small>${esc(s.code)}</small></button>`).join('')}</div></div>
@@ -1185,7 +1192,7 @@ function newRepModal() {
     }
     if (seq !== previewSeq || !box) return;
     if (items.length) {
-      box.innerHTML = `<div class="note ok small" style="margin:0">📋 <b>Đã tìm thấy ${items.length} đơn trong Kế hoạch SX</b> của máy <b>${esc(mach)}</b>:<br>${items.map((it, i) => `${i + 1}. ĐH: <b>${esc(it.ma_dh)}</b> · KH: <b>${esc(it.ma_kh)}</b> · SP: <b>${esc(it.ma_sp)}</b>${it.sl_ke_hoach ? ` (${fmtN(it.sl_ke_hoach)} cái)` : ''}`).join('<br>')}<br><span class="mut">Hệ thống sẽ điền sẵn làm sườn, bạn có thể sửa lại theo thực tế.</span></div>`;
+      box.innerHTML = `<div class="note ok small" style="margin:0">📋 <b>Đã tìm thấy ${items.length} đơn trong Kế hoạch SX</b> của máy <b>${esc(mach)}</b>:<br>${items.map((it, i) => `${i + 1}. ĐH: <b>${esc(it.ma_dh)}</b> · KH: <b>${esc(it.ma_kh)}</b> · SP: <b>${esc(it.ma_sp)}</b>`).join('<br>')}<br><span class="mut">Hệ thống sẽ điền sẵn làm sườn, bạn có thể sửa lại theo thực tế.</span></div>`;
     } else {
       box.innerHTML = `<div class="small mut">Chưa có kế hoạch tải lên cho Máy ${esc(mach)} · Ca ${esc(code)} · Ngày ${fd(rDate)} (Bạn vẫn tạo phiếu và nhập tay bình thường).</div>`;
     }
@@ -1232,16 +1239,15 @@ function newRepModal() {
 
 function helpModal() {
   modal(`<h3>Hướng dẫn nhanh</h3><ol class="steps">
-  <li><b>Tạo phiếu</b>: kiểm tra ngày – ca – máy (mã máy cũ Cột A), bấm “Bắt đầu”. Nếu quản lý đã tải kế hoạch lên, phiếu sẽ <b>tự động có sẵn sườn Mã ĐH, Mã KH, Mã SP</b> của máy đó.</li>
-  <li><b>Điều chỉnh theo thực tế</b>: sườn kế hoạch chỉ là gợi ý. Nếu thực tế chạy khác kế hoạch, bạn có thể sửa trực tiếp Mã ĐH, Mã SP, Mã KH, xóa bớt đơn không chạy hoặc bấm <b>＋ Thêm sản phẩm</b>.</li>
-  <li><b>Điền 4 bước</b>: <b>① Đơn hàng & CN</b> → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
-  <li>Ở bước ④ trên điện thoại: bạn có thể bấm nút <b>“👁 Xem dạng bảng”</b> để nhìn tất cả các lần kiểm tra song song giống như trên máy tính.</li>
+  <li><b>Tạo phiếu</b>: kiểm tra ngày – ca – máy. Nếu chọn sai máy, bạn có thể bấm nút <b>🗑 Xóa phiếu</b> để xóa ngay phiếu đang điền đó.</li>
+  <li><b>Đổi máy hoặc đơn hàng</b>: Đổi máy ở đầu phiếu sẽ <b>không làm mất đơn bạn đang nhập</b>. Nếu máy này chạy gánh đơn cho máy khác, bạn hãy bấm <b>"Chọn đơn từ Kế hoạch SX"</b> để chọn đơn của bất kỳ máy nào trong ca.</li>
+  <li><b>Quyền sửa & xóa</b>: Phiếu đang điền công nhân có thể xóa. Khi đã gửi duyệt hoặc đã duyệt, công nhân chỉ có thể xem. Phiếu đã duyệt chỉ Quản lý ca hoặc Admin mới có quyền sửa đổi.</li>
   <li>Điền xong bấm <b>“💾 Lưu”</b> hoặc <b>“📤 Gửi duyệt”</b>.</li></ol>
   <div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
 }
 
 // ============================================================================
-// CẤU TRÚC DỮ LIỆU SẢN PHẨM, CUỘN & QC
+// DỮ LIỆU SẢN PHẨM & QC
 // ============================================================================
 const ROLL_FIELDS = ['ma_kh', 'cuon_so_may_so', 'ca_ngay_sx', 'kg_dau_cuon', 'ma_pe', 'cuon_pe', 'ca_ngay_thoi', 'kho_bao', 'dai_cat', 'dl10', 'so_cai', 'phe_co_dau', 'phe_khong_dau', 'rau_bo', 'rau_dem'];
 const newRoll = () => {
@@ -1337,9 +1343,10 @@ const lanAnswered = l => OK_ITEMS.filter(i => l.v[i.k]).length;
 const lanDone = l => !!l.v.tg && lanAnswered(l) === OK_ITEMS.length;
 
 // ============================================================================
-// TRÌNH BIÊN TẬP PHIẾU (EDITOR)
+// TRÌNH BIÊN TẬP PHIẾU
 // ============================================================================
 const isWorker = () => S.me.kind === 'worker';
+const isStaff = () => S.me.kind === 'staff';
 const isAdmin = () => S.me.kind === 'staff' && S.me.role === 'admin';
 
 function prepareReportForEdit(r) {
@@ -1354,7 +1361,11 @@ function prepareReportForEdit(r) {
   }
   S.rep.data = defVal(S.rep.data, {});
   S.rep.data.products = defVal(S.rep.data.products, []);
-  S.ro = !(isWorker() ? S.rep.status !== 'approved' : isAdmin());
+
+  // QUYỀN SỬA PHIẾU:
+  // - Nếu là công nhân: chỉ được sửa khi status !== 'approved'
+  // - Nếu là quản lý / admin: luôn có quyền sửa kể cả khi đã duyệt
+  S.ro = isWorker() ? S.rep.status === 'approved' : false;
 
   if (!S.ro && !S.rep.data.products.length) {
     const planItems = S.rep.data.plan_items || getLocalPlanItems(S.rep.report_date, S.rep.shift, S.rep.machine);
@@ -1367,7 +1378,7 @@ function prepareReportForEdit(r) {
   }
   S.rep.data.products.forEach(p => {
     ensureShape(p);
-    const rollSum = p.rolls.reduce((a, ro) => a + toInt(ro.so_cai), 0);
+    const rollSum = p.rolls.reduce((a, r) => a + toInt(r.so_cai), 0);
     if (rollSum > 0) p.tong_cai = String(rollSum);
   });
 }
@@ -1500,10 +1511,10 @@ function clientErrors() {
 async function submitReport() {
   const errs = clientErrors();
   if (errs.length) {
-    modal(`<h3>Chưa đủ thông tin để gửi</h3><p>Vui lòng bổ sung (Nếu đơn hàng nào trong kế hoạch thực tế không chạy, bạn hãy bấm nút <b>"Xóa sản phẩm này"</b> ở cuối trang):</p><ul>${errs.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
+    modal(`<h3>Chưa đủ thông tin để gửi</h3><p>Vui lòng bổ sung (Nếu đơn nào thực tế không chạy, bấm <b>"Xóa sản phẩm này"</b>):</p><ul>${errs.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
     return;
   }
-  if (!await ask('Gửi quản lý duyệt?', 'Sau khi quản lý duyệt, bạn sẽ <b>không sửa được nữa</b>. Kiểm tra kỹ rồi gửi.', 'Gửi duyệt')) return;
+  if (!await ask('Gửi quản lý duyệt?', 'Sau khi quản lý duyệt, bạn sẽ không tự sửa được nữa. Kiểm tra kỹ rồi gửi.', 'Gửi duyệt')) return;
   if (await save(true)) { await workerHome(); }
 }
 
@@ -1576,35 +1587,6 @@ function renderStepBody() {
   applyReadOnlyState(pb);
 }
 
-// Đồng bộ lại sườn kế hoạch khi người dùng đổi Ngày / Ca / Máy ở đầu phiếu
-async function syncPlanAfterHeaderChange() {
-  if (!S.rep || S.ro) return;
-  const r = S.rep;
-  let items = getLocalPlanItems(r.report_date, r.shift, r.machine);
-  if (!items.length) {
-    try {
-      const res = await api('GET', `/api/plans?date=${encodeURIComponent(r.report_date)}&shift=${encodeURIComponent(r.shift)}&machine=${encodeURIComponent(r.machine)}`);
-      if (res && Array.isArray(res.items)) items = res.items;
-    } catch (e) {}
-  }
-  r.data.plan_items = items;
-  if (items.length) {
-    const hasEnteredActual = prods().some(p => toInt(p.tong_cai) > 0 || p.bat_dau || p.ket_thuc);
-    if (!hasEnteredActual) {
-      r.data.products = items.map(it => createProductFromPlanItem(it, r.worker_name));
-      S.pid = 0;
-      markDirty();
-      renderEditor();
-      toast(`Đã cập nhật ${items.length} đơn theo Kế hoạch của Máy ${r.machine} ✓`, 'ok');
-    } else {
-      toast(`Máy ${r.machine} có ${items.length} đơn trong Kế hoạch (bấm "Chọn đơn từ KH" nếu muốn nạp)`, 'ok');
-      renderEditor();
-    }
-  } else {
-    renderEditor();
-  }
-}
-
 function renderEditor() {
   const r = S.rep, P = S.pid, p = prods()[P];
   const title = `Máy ${esc(r.machine)} · Ca ${esc(r.shift)}`;
@@ -1612,14 +1594,14 @@ function renderEditor() {
   let h = `<div class="top"><button data-act="back">←</button><h1 id="etitle">${title}<span class="sub">${fd(r.report_date)} · ${esc(r.worker_name)}</span></h1>${badge(r.status)}</div>
   <div class="wrap">`;
   if (r.status === 'rejected' && r.manager_note) h += `<div class="note bad"><b>Quản lý trả lại phiếu:</b> ${esc(r.manager_note)}<br><span class="small">Sửa lại rồi bấm “Gửi duyệt”.</span></div>`;
-  if (r.status === 'approved') h += `<div class="note ok">✓ Đã được <b>${esc(r.approved_by)}</b> duyệt lúc ${esc(appTime.time)} ${esc(appTime.date)}. ${isWorker() ? 'Phiếu đã khóa, không sửa được.' : ''}</div>`;
-  if (r.status === 'submitted' && isWorker()) h += `<div class="note info">Phiếu đã gửi, đang chờ quản lý duyệt. Bạn vẫn có thể sửa nếu phát hiện sai.</div>`;
+  if (r.status === 'approved') h += `<div class="note ok">✓ Đã được <b>${esc(r.approved_by)}</b> duyệt lúc ${esc(appTime.time)} ${esc(appTime.date)}. ${isWorker() ? 'Phiếu đã duyệt (chỉ xem, liên hệ quản lý nếu cần chỉnh).' : 'Bạn đang xem/sửa với quyền Quản lý.'}</div>`;
+  if (r.status === 'submitted' && isWorker()) h += `<div class="note info">Phiếu đã gửi, đang chờ quản lý duyệt. Bạn vẫn có thể kiểm tra lại.</div>`;
   h += `<div class="card"><div class="row"><div class="sp"><b>Ngày ${fd(r.report_date)}</b> · Ca <b>${esc(r.shift)}</b> · Máy <b>${esc(r.machine)}</b><div class="small mut">Người nhập: ${esc(r.worker_name)}</div></div>
    ${S.ro ? '' : `<button class="btn sm" data-act="head">${S.headOpen ? 'Đóng' : 'Sửa ngày / ca / máy'}</button>`}</div>`;
   if (S.headOpen && !S.ro) {
-    h += `<div class="grid g2" style="margin-top:10px"><label class="f"><span>Ngày sản xuất</span><input type="date" data-p="report_date" data-re="1" value="${esc(r.report_date)}"></label>
-    <label class="f"><span>Máy cắt (Cột A)</span><select data-p="machine" data-re="1">${[...new Set([...S.config.machines, r.machine])].map(m => `<option ${m === r.machine ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
-    <div><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span><div class="seg neutral" style="margin-top:3px">${S.config.shifts.map(s => `<button type="button" class="${s.code === r.shift ? 'on' : ''}" data-act="seg" data-p="shift" data-v="${esc(s.code)}" data-re="1"><span class="lg">${esc(s.name)}<br><small>${esc(s.code)}</small></span></button>`).join('')}</div></div>
+    h += `<div class="grid g2" style="margin-top:10px"><label class="f"><span>Ngày sản xuất</span><input type="date" data-p="report_date" value="${esc(r.report_date)}"></label>
+    <label class="f"><span>Máy cắt (Cột A)</span><select data-p="machine">${[...new Set([...S.config.machines, r.machine])].map(m => `<option ${m === r.machine ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+    <div><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span><div class="seg neutral" style="margin-top:3px">${S.config.shifts.map(s => `<button type="button" class="${s.code === r.shift ? 'on' : ''}" data-act="seg" data-p="shift" data-v="${esc(s.code)}"><span class="lg">${esc(s.name)}<br><small>${esc(s.code)}</small></span></button>`).join('')}</div></div>
     ${F('worker_name', 'Tên người nhập (C01)')}</div>`;
   }
   h += `</div>`;
@@ -1636,16 +1618,34 @@ function renderEditor() {
 }
 
 function saveBar() {
-  const staff = S.me.kind === 'staff', r = S.rep;
+  const staff = isStaff(), adm = isAdmin(), r = S.rep;
   let b = '';
+
   if (isWorker()) {
-    if (S.ro) b = `<button class="btn" data-act="back" style="flex:1">← Quay lại</button>`;
-    else b = `<span class="st" id="savest"></span><button class="btn pri" data-act="save">💾 Lưu</button><button class="btn ok" data-act="submit" style="flex:2">📤 Gửi duyệt</button>`;
+    if (S.ro) {
+      // Phiếu đã duyệt: công nhân chỉ xem
+      b = `<button class="btn" data-act="back" style="flex:1">← Quay lại</button>`;
+    } else {
+      // Phiếu đang điền (draft) hoặc bị trả lại (rejected)
+      b = `<span class="st" id="savest"></span><button class="btn pri" data-act="save">💾 Lưu</button><button class="btn ok" data-act="submit" style="flex:2">📤 Gửi duyệt</button>`;
+      // Cho phép công nhân xóa phiếu khi đang ở trạng thái draft
+      if (r.status === 'draft') {
+        b += `<button class="btn bad sm" data-act="delrep" title="Xóa bỏ phiếu đang điền này" style="flex:0 0 auto;padding:0 12px">🗑 Xóa phiếu</button>`;
+      }
+    }
   } else {
-    if (r.status === 'submitted') b += `<button class="btn ok" data-act="approve" style="flex:2">✓ Duyệt phiếu</button><button class="btn bad" data-act="return">↩ Trả lại</button>`;
-    if (isAdmin()) {
-      if (r.status === 'approved') b += `<button class="btn bad" data-act="return">↩ Mở lại để sửa</button>`;
-      b = `<span class="st" id="savest"></span><button class="btn pri" data-act="save">💾 Lưu sửa</button>` + b + `<button class="btn ghost" data-act="delrep" style="flex:0 0 auto;color:var(--bad)">🗑</button>`;
+    // Quản lý ca / Admin
+    if (r.status === 'submitted') {
+      b += `<button class="btn ok" data-act="approve" style="flex:2">✓ Duyệt phiếu</button><button class="btn bad" data-act="return">↩ Trả lại</button>`;
+    }
+    // Cho phép quản lý và admin lưu sửa kể cả khi phiếu đã duyệt
+    b = `<span class="st" id="savest"></span><button class="btn pri" data-act="save">💾 Lưu sửa</button>` + b;
+
+    // QUYỀN XÓA: Chỉ Admin tổng mới có nút xóa phiếu. Quản lý ca không được xóa phiếu đã duyệt!
+    if (adm) {
+      b += `<button class="btn ghost" data-act="delrep" style="flex:0 0 auto;color:var(--bad)">🗑</button>`;
+    } else if (r.status !== 'approved') {
+      b += `<button class="btn ghost" data-act="delrep" style="flex:0 0 auto;color:var(--bad)">🗑</button>`;
     }
     if (!b) b = `<button class="btn" data-act="back" style="flex:1">← Quay lại</button>`;
   }
@@ -1662,13 +1662,12 @@ function step1(P) {
   if (p.plan_meta) {
     const pm = p.plan_meta;
     planBanner = `<div class="note warn small" style="margin-top:8px">
-      <div class="row"><b>📋 Sườn theo Kế hoạch SX:</b><span class="sp"></span>${!S.ro ? `<button type="button" class="btn sm" data-act="pickplan">Đổi đơn khác từ KH</button>` : ''}</div>
-      KH: <b>${esc(defVal(firstRollKh, pm.ma_kh))}</b> · SL kế hoạch: <b>${pm.sl_ke_hoach ? fmtN(pm.sl_ke_hoach) + ' cái' : '—'}</b> · Dài cắt: <b>${esc(defVal(pm.dai_cat, '—'))}cm</b> · ĐL: <b>${esc(defVal(pm.dinh_luong, '—'))}g</b>
+      <div class="row"><b>📋 Đơn theo Kế hoạch:</b><span class="sp"></span>${!S.ro ? `<button type="button" class="btn sm" data-act="pickplan">Đổi đơn khác từ Kế hoạch</button>` : ''}</div>
+      KH: <b>${esc(defVal(firstRollKh, pm.ma_kh))}</b> · SL: <b>${pm.sl_ke_hoach ? fmtN(pm.sl_ke_hoach) + ' cái' : '—'}</b> · Dài cắt: <b>${esc(defVal(pm.dai_cat, '—'))}cm</b> · ĐL: <b>${esc(defVal(pm.dinh_luong, '—'))}g</b>
       ${pm.mo_ta ? `<br>Mô tả: <b>${esc(pm.mo_ta)}</b>` : ''}${pm.phuong_phap ? ` · PP: <b>${esc(pm.phuong_phap)}</b>` : ''}
-      <br><i>Lưu ý: Đây chỉ là sườn theo kế hoạch, nếu thực tế chạy khác bạn hãy chỉnh sửa trực tiếp các ô bên dưới theo đúng thực tế!</i>
     </div>`;
   } else if (!S.ro) {
-    planBanner = `<div class="row" style="margin-top:6px;margin-bottom:4px"><span class="small mut">Bạn có thể nhập tay hoặc nạp nhanh sườn từ Kế hoạch SX của ca này:</span><span class="sp"></span><button type="button" class="btn sm" data-act="pickplan">📋 Chọn đơn từ Kế hoạch SX</button></div>`;
+    planBanner = `<div class="row" style="margin-top:6px;margin-bottom:4px"><span class="small mut">Bạn có thể nhập tay hoặc chọn nhanh đơn từ Kế hoạch SX:</span><span class="sp"></span><button type="button" class="btn sm" data-act="pickplan">📋 Chọn đơn từ Kế hoạch SX</button></div>`;
   }
 
   return `<h3>① Đơn hàng & Công nhân thực hiện</h3>
@@ -1704,14 +1703,14 @@ function step1(P) {
       ${F(b + 'dung_khac_ly_do', 'Ghi rõ lý do khác')}
     </div>
   </fieldset>
-  <p class="small mut" style="margin-top:8px">Tổng số cái tự cộng từ các cuộn ở bước ②. Khi xuất Excel, giờ sẽ tự động chuẩn hóa sang <b>hh:mm:ss</b>.</p>
+  <p class="small mut" style="margin-top:8px">Tổng số cái tự cộng từ các cuộn ở bước ②. Khi xuất Excel, giờ sẽ chuẩn hóa sang <b>hh:mm:ss</b>.</p>
   ${nextBtn(2)}`;
 }
 const nextBtn = n => S.ro ? '' : `<div style="margin-top:14px"><button class="btn pri" style="width:100%" data-act="step" data-n="${n}">Tiếp: ${STEPS[n - 1][1]} →</button></div>`;
 
 function step2(P) {
   const p = prods()[P];
-  return `<h3>② Các cuộn đã cắt</h3><p class="small mut">Mỗi cuộn PP cắt xong ghi 1 thẻ. Mã KH và Chiều dài cắt được điền sẵn từ kế hoạch, bạn có thể sửa lại nếu thực tế thay đổi.</p>
+  return `<h3>② Các cuộn đã cắt</h3><p class="small mut">Mỗi cuộn PP cắt xong ghi 1 thẻ. Mã KH và Chiều dài cắt có thể sửa lại theo thực tế.</p>
   <div id="rolls_wrap">${p.rolls.map((r, i) => rollHTML(P, i)).join('')}</div>
   ${S.ro ? '' : `<button class="btn" style="width:100%" data-act="addroll">＋ Thêm cuộn</button>`}${nextBtn(3)}`;
 }
@@ -1812,42 +1811,87 @@ function dqHelp() {
  <div class="row end"><button class="btn pri" data-close>Đóng</button></div>`);
 }
 
+// HỘP THOẠI CHỌN ĐƠN HÀNG TỪ KẾ HOẠCH (HỖ TRỢ CHỌN CỦA MÁY HIỆN TẠI HOẶC MÁY KHÁC)
 async function pickPlanItemModal() {
   const r = S.rep;
-  let items = getLocalPlanItems(r.report_date, r.shift, r.machine);
-  if (!items.length && r.data && Array.isArray(r.data.plan_items)) {
-    items = r.data.plan_items;
-  }
-  if (!items.length) {
+  let planMap = getLocalPlanItems(r.report_date, r.shift);
+  if (!planMap || !Object.keys(planMap).length) {
     try {
-      const res = await api('GET', `/api/plans?date=${encodeURIComponent(r.report_date)}&shift=${encodeURIComponent(r.shift)}&machine=${encodeURIComponent(r.machine)}`);
-      if (res && Array.isArray(res.items)) items = res.items;
+      const res = await api('GET', `/api/plans?date=${encodeURIComponent(r.report_date)}&shift=${encodeURIComponent(r.shift)}`);
+      if (res && res.planMap) planMap = res.planMap;
     } catch (e) {}
   }
 
-  if (!items.length) {
-    toast(`Không có đơn hàng nào trong Kế hoạch của Máy ${r.machine} · Ca ${r.shift} · Ngày ${fd(r.report_date)}`, 'bad');
+  const allMachsWithPlan = Object.keys(planMap || {}).filter(k => Array.isArray(planMap[k]) && planMap[k].length > 0);
+
+  if (!allMachsWithPlan.length) {
+    toast(`Không tìm thấy Kế hoạch SX nào cho Ca ${r.shift} · Ngày ${fd(r.report_date)}`, 'bad');
     return;
   }
 
-  const m = modal(`<h3>Chọn đơn từ Kế hoạch SX (${esc(r.machine)})</h3>
-    <p class="small mut">Chọn 1 đơn bên dưới để điền vào <b>SP ${S.pid + 1}</b> hiện tại, hoặc bấm "Nạp toàn bộ" để thêm tất cả các đơn của máy này:</p>
-    <div>${items.map((it, idx) => `<button type="button" class="rcard" data-pick="${idx}">
-      <div class="sp">
-        <div class="t">${idx + 1}. ĐH: ${esc(it.ma_dh)} · KH: ${esc(it.ma_kh)}</div>
-        <div class="small">Mã SP (Cột G): <b>${esc(it.ma_sp)}</b></div>
-        <div class="small mut">${esc(defVal(it.mo_ta, ''))} ${it.dai_cat ? `· Cắt: ${it.dai_cat}cm` : ''} ${it.dinh_luong ? `· ĐL: ${it.dinh_luong}g` : ''}</div>
+  let selectedMach = allMachsWithPlan.includes(r.machine) ? r.machine : allMachsWithPlan[0];
+
+  const renderContent = (curMach) => {
+    const items = planMap[curMach] || [];
+    return `<h3>Chọn đơn từ Kế hoạch SX</h3>
+      <p class="small mut">Ca ${esc(r.shift)} · Ngày ${fd(r.report_date)}: Bạn có thể chọn đơn hàng của máy hiện tại hoặc lấy đơn của máy khác nếu chạy thay.</p>
+      <label class="f" style="margin-bottom:10px"><span>Xem đơn của máy:</span>
+        <select id="pick_mach_select">${allMachsWithPlan.map(m => `<option value="${esc(m)}" ${m === curMach ? 'selected' : ''}>Máy ${esc(m)} (${(planMap[m]||[]).length} đơn)</option>`).join('')}</select>
+      </label>
+      <div style="max-height:55vh;overflow-y:auto" id="pick_items_box">
+        ${items.map((it, idx) => `<button type="button" class="rcard" data-pick="${idx}" style="margin-bottom:6px">
+          <div class="sp">
+            <div class="t">${idx + 1}. ĐH: ${esc(it.ma_dh)} · KH: ${esc(it.ma_kh)}</div>
+            <div class="small">Mã SP cũ (Cột G): <b>${esc(it.ma_sp)}</b></div>
+            <div class="small mut">${esc(defVal(it.mo_ta, ''))} ${it.dai_cat ? `· Cắt: ${it.dai_cat}cm` : ''} ${it.dinh_luong ? `· ĐL: ${it.dinh_luong}g` : ''}</div>
+          </div>
+          <div class="r"><span class="badge b-approved">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) + ' cái' : 'Chọn'}</span></div>
+        </button>`).join('')}
       </div>
-      <div class="r"><span class="badge b-approved">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) + ' cái' : 'Chọn'}</span></div>
-    </button>`).join('')}</div>
-    <div class="row end">
-      <button class="btn" data-close>Đóng</button>
-      <button class="btn pri" id="load_all_plan">Nạp toàn bộ ${items.length} đơn vào phiếu</button>
-    </div>`, true);
+      <div class="row end">
+        <button class="btn" data-close>Đóng</button>
+        <button class="btn pri" id="load_all_mach_plan">Nạp toàn bộ ${items.length} đơn của máy này</button>
+      </div>`;
+  };
+
+  const m = modal(renderContent(selectedMach), true);
+
+  const attachEvents = () => {
+    const sel = $('#pick_mach_select', m);
+    if (sel) {
+      sel.onchange = () => {
+        selectedMach = sel.value;
+        const items = planMap[selectedMach] || [];
+        $('#pick_items_box', m).innerHTML = items.map((it, idx) => `<button type="button" class="rcard" data-pick="${idx}" style="margin-bottom:6px">
+          <div class="sp">
+            <div class="t">${idx + 1}. ĐH: ${esc(it.ma_dh)} · KH: ${esc(it.ma_kh)}</div>
+            <div class="small">Mã SP cũ (Cột G): <b>${esc(it.ma_sp)}</b></div>
+            <div class="small mut">${esc(defVal(it.mo_ta, ''))} ${it.dai_cat ? `· Cắt: ${it.dai_cat}cm` : ''} ${it.dinh_luong ? `· ĐL: ${it.dinh_luong}g` : ''}</div>
+          </div>
+          <div class="r"><span class="badge b-approved">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) + ' cái' : 'Chọn'}</span></div>
+        </button>`).join('');
+        $('#load_all_mach_plan', m).textContent = `Nạp toàn bộ ${items.length} đơn của máy này`;
+      };
+    }
+
+    $('#load_all_mach_plan', m).onclick = () => {
+      const items = planMap[selectedMach] || [];
+      if (!items.length) return;
+      S.rep.data.products = items.map(it => createProductFromPlanItem(it, S.rep.worker_name));
+      S.pid = 0;
+      markDirty();
+      m.remove();
+      renderEditor();
+      toast(`Đã nạp ${items.length} đơn hàng của Máy ${selectedMach} ✓`, 'ok');
+    };
+  };
+
+  attachEvents();
 
   m.addEventListener('click', e => {
     const pickBtn = e.target.closest('[data-pick]');
     if (pickBtn) {
+      const items = planMap[selectedMach] || [];
       const it = items[+pickBtn.dataset.pick];
       const cur = prods()[S.pid];
       cur.ma_dh = defVal(it.ma_dh, '');
@@ -1869,22 +1913,13 @@ async function pickPlanItemModal() {
       markDirty();
       m.remove();
       renderEditor();
-      toast('Đã điền thông tin đơn hàng từ Kế hoạch ✓', 'ok');
+      toast(`Đã gán đơn hàng từ Kế hoạch (${selectedMach}) ✓`, 'ok');
     }
   });
-
-  $('#load_all_plan', m).onclick = () => {
-    S.rep.data.products = items.map(it => createProductFromPlanItem(it, S.rep.worker_name));
-    S.pid = 0;
-    markDirty();
-    m.remove();
-    renderEditor();
-    toast(`Đã nạp ${items.length} đơn hàng từ Kế hoạch ✓`, 'ok');
-  };
 }
 
 // ============================================================================
-// SỰ KIỆN & ACTIONS
+// SỰ KIỆN & THAO TÁC
 // ============================================================================
 function refreshStepTabs() {
   if (!S.rep || S.view !== 'edit') return;
@@ -1941,7 +1976,6 @@ document.addEventListener('input', e => {
       refreshStepTabs();
     }
   }
-  if (t.dataset.re) return;
   markDirty();
 });
 
@@ -1958,10 +1992,13 @@ document.addEventListener('change', async e => {
     }
     return;
   }
-  if (t.dataset && t.dataset.re && S.rep && S.view === 'edit') {
+  // Khi đổi Ngày/Ca/Máy ở đầu phiếu: CHỈ CẬP NHẬT THÔNG TIN MÁY, KHÔNG GHI ĐÈ ĐƠN HÀNG ĐANG NHẬP
+  if (t.dataset && t.dataset.p && ['report_date', 'machine'].includes(t.dataset.p) && S.rep && S.view === 'edit') {
     setPath(S.rep, t.dataset.p, t.value);
     markDirty();
-    await syncPlanAfterHeaderChange();
+    const title = `Máy ${esc(S.rep.machine)} · Ca ${esc(S.rep.shift)}`;
+    const et = $('#etitle');
+    if (et) et.innerHTML = `${title}<span class="sub">${fd(S.rep.report_date)} · ${esc(S.rep.worker_name)}</span>`;
   }
 });
 
@@ -2062,7 +2099,6 @@ const ACT = {
     const id = b.dataset.id, p = prods()[S.pid], last = p.rolls[p.rolls.length - 1].id;
     const isOpen = !(S.rollOpen[id] ?? (id === last));
     S.rollOpen[id] = isOpen;
-    // Cập nhật trực tiếp trên DOM, không vẽ lại cả trang giúp mượt 0ms trên điện thoại
     const card = b.closest('.roll');
     if (card) {
       const rb = card.querySelector('.rb');
@@ -2077,13 +2113,13 @@ const ACT = {
     const cur = getPath(S.rep, p);
     if (b.dataset.tog && cur === v) v = '';
     setPath(S.rep, p, v);
-    if (b.dataset.re) {
-      markDirty();
-      await syncPlanAfterHeaderChange();
-      return;
-    }
     $$(`[data-act="seg"][data-p="${p}"]`).forEach(x => x.classList.toggle('on', x.dataset.v === v && v !== ''));
     markDirty();
+    if (p === 'shift') {
+      const title = `Máy ${esc(S.rep.machine)} · Ca ${esc(S.rep.shift)}`;
+      const et = $('#etitle');
+      if (et) et.innerHTML = `${title}<span class="sub">${fd(S.rep.report_date)} · ${esc(S.rep.worker_name)}</span>`;
+    }
     if (S.step === 4) refreshLanLabels();
   },
   tog: b => {
@@ -2148,7 +2184,6 @@ const ACT = {
     const l = prods()[S.pid].qc.lans[lIdx];
     if (!l.v.tg) l.v.tg = nowHM();
     OK_ITEMS.forEach(i => { if (!l.v[i.k]) l.v[i.k] = 'ok'; });
-    // Cập nhật trực tiếp trên DOM mà không cần vẽ lại toàn bộ cây HTML
     const tgInput = $(`input[data-p="data.products.${S.pid}.qc.lans.${lIdx}.v.tg"]`);
     if (tgInput) tgInput.value = l.v.tg;
     OK_ITEMS.forEach(i => {
@@ -2184,19 +2219,41 @@ const ACT = {
     staffHome();
   },
   return: async () => {
-    const note = await askText(S.rep.status === 'approved' ? 'Mở lại phiếu để sửa' : 'Trả lại cho công nhân', 'Lý do / chỗ cần sửa', 'Trả lại', 'area');
+    const note = await askText('Trả lại phiếu', 'Lý do / chỗ cần sửa', 'Trả lại', 'area');
     if (note === null) return;
     await api('POST', `/api/reports/${S.rep.id}/return`, { note });
     toast('Đã trả lại phiếu', 'ok');
     staffHome();
   },
   delrep: async () => {
-    if (!await ask('Xóa phiếu?', 'Xóa hẳn phiếu này khỏi hệ thống? Không khôi phục được.', 'Xóa', true)) return;
-    await api('DELETE', '/api/reports/' + S.rep.id);
-    localStorage.removeItem('bk_' + S.rep.id);
+    const r = S.rep;
+    if (r.status === 'approved' && !isAdmin()) {
+      toast('Phiếu đã duyệt không thể xóa!', 'bad');
+      return;
+    }
+    if (isWorker() && r.status !== 'draft') {
+      toast('Công nhân chỉ được xóa phiếu khi đang điền!', 'bad');
+      return;
+    }
+    if (!await ask('Xóa phiếu?', `Xóa phiếu Máy ${esc(r.machine)} · ${esc(r.shift)} · ${fd(r.report_date)}?`, 'Xóa', true)) return;
+    await api('DELETE', '/api/reports/' + r.id);
+    removeLocalReport(r.id);
     S.dirty = false;
-    toast('Đã xóa', 'ok');
-    staffHome();
+    toast('Đã xóa phiếu thành công', 'ok');
+    if (isStaff()) staffHome(); else workerHome();
+  },
+  delrep_list: async b => {
+    const id = +b.dataset.id;
+    if (!await ask('Xóa phiếu đang điền?', 'Bạn có chắc muốn xóa phiếu đang điền này khỏi danh sách?', 'Xóa', true)) return;
+    try {
+      await api('DELETE', '/api/reports/' + id);
+      removeLocalReport(id);
+      S.list = S.list.filter(x => Number(x.id) !== id);
+      renderWorkerList(S.list);
+      toast('Đã xóa phiếu ✓', 'ok');
+    } catch (err) {
+      toast(err.message, 'bad');
+    }
   },
   tab: b => { S.tab = b.dataset.t; staffHome(); },
   refresh: () => staffHome(false, true),
@@ -2308,7 +2365,7 @@ window.addEventListener('beforeunload', e => {
 });
 
 // ============================================================================
-// GIAO DIỆN QUẢN LÝ & ADMIN (HIỂN THỊ ĐẦY ĐỦ TRÊN CẢ ĐIỆN THOẠI & MÁY TÍNH)
+// GIAO DIỆN QUẢN LÝ
 // ============================================================================
 function defFilters() {
   const now = new Date();
@@ -2389,7 +2446,6 @@ async function staffHome(fromBoot = false, forceRefresh = false) {
   }
 }
 
-// Giao diện Upload & Quản lý Kế hoạch Sản xuất
 function renderPlanPreviewBox() {
   const box = $('#plan_parsed_box');
   if (!box) return;
@@ -2402,7 +2458,7 @@ function renderPlanPreviewBox() {
     .map(s => `<option value="${esc(s.code)}" ${s.code === p.shift ? 'selected' : ''}>${esc(s.name)} (${esc(s.code)})</option>`).join('');
 
   box.innerHTML = `<div class="note ok" style="margin-top:12px">
-    <b>✓ Đã đọc thành công Sheet "${esc(p.sheetName)}":</b> Phát hiện <b>${p.totalOrders} đơn hàng</b> phân bổ trên <b>${activeMachs.length} máy</b> (Tổng số máy ở Cột A: ${p.machines.length} máy từ <b>${esc(p.machines[0] || '')}</b> đến <b>${esc(p.machines[p.machines.length - 1] || '')}</b>).
+    <b>✓ Đã đọc thành công Sheet "${esc(p.sheetName)}":</b> Phát hiện <b>${p.totalOrders} đơn hàng</b> phân bổ trên <b>${activeMachs.length} máy</b>.
   </div>
   <div class="grid g2" style="margin-top:10px">
     <label class="f"><span>Ngày áp dụng kế hoạch (Ô D1)</span><input type="date" id="pl_date" value="${esc(p.plan_date)}"></label>
@@ -2410,7 +2466,7 @@ function renderPlanPreviewBox() {
   </div>
   <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:600;cursor:pointer">
     <input type="checkbox" id="pl_sync_mach" checked style="width:20px;height:20px;flex-shrink:0">
-    <span>Cập nhật luôn danh sách ${p.machines.length} máy (Mã máy cũ Cột A) vào hệ thống cho công nhân chọn</span>
+    <span>Cập nhật danh sách ${p.machines.length} máy (Cột A) vào hệ thống</span>
   </label>
   <div class="tscroll" style="margin-top:12px;max-height:280px;overflow-y:auto">
     <table class="rt keep-tbl"><thead><tr><th>Máy (Cột A)</th><th>Đơn hàng (Cột C)</th><th>Mã KH (Cột F)</th><th>Mã SP cũ (Cột G)</th><th class="num">SL Kế hoạch</th></tr></thead><tbody>
@@ -2449,11 +2505,11 @@ function renderSavedPlansList(plans) {
 async function plansView(force = false) {
   staffShell(`<div class="card">
     <h3>📅 Upload file Kế hoạch sản xuất (.xlsx)</h3>
-    <p class="small mut">Chọn file <b>KE HOACH SAN XUAT.xlsx</b>. Hệ thống sẽ tự động lấy <b>Mã máy cũ (Cột A)</b>, <b>Đơn hàng (Cột C)</b>, <b>Mã KH (Cột F)</b> và <b>Mã SP cũ (Cột G)</b> để tạo sẵn sườn cho công nhân khi vào đúng Ca & Ngày đó.</p>
+    <p class="small mut">Chọn file <b>KE HOACH SAN XUAT.xlsx</b>. Hệ thống sẽ tự động đọc <b>Mã máy cũ (Cột A)</b>, <b>Đơn hàng (Cột C)</b>, <b>Mã KH (Cột F)</b> và <b>Mã SP cũ (Cột G)</b>.</p>
     <label class="upbox" style="margin-top:10px">
       <input type="file" id="plan_file_in" accept=".xlsx" class="hide">
       <div style="font-size:17px;font-weight:700;color:var(--pri)">📂 Bấm vào đây để chọn file KE HOACH SAN XUAT.xlsx</div>
-      <div class="small mut" style="margin-top:4px">Đọc trực tiếp ngay trên điện thoại / máy tính – tự nhận diện Ca (C1) và Ngày (D1)</div>
+      <div class="small mut" style="margin-top:4px">Đọc trực tiếp – tự nhận diện Ca (C1) và Ngày (D1)</div>
     </label>
     <div id="plan_parsed_box"></div>
   </div>
@@ -2477,7 +2533,7 @@ async function plansView(force = false) {
 function exportView() {
   const f = S.ef ? S.ef : (S.ef = defFilters());
   staffShell(`<div class="card" style="max-width:720px"><h3>Xuất file Excel sản lượng cắt bao</h3>
-  <p class="mut small">Mỗi dòng = 1 sản phẩm cắt kèm thông số máy tương ứng của đơn đó. Sheet 2 là chi tiết từng cuộn.</p>
+  <p class="mut small">Mỗi dòng = 1 sản phẩm cắt. Sheet 2 là chi tiết từng cuộn.</p>
   <div class="grid g2" style="margin:10px 0">
   <label class="f"><span>Từ ngày</span><input type="date" id="xf" value="${f.from}"></label><label class="f"><span>Đến ngày</span><input type="date" id="xt" value="${f.to}"></label>
   <label class="f"><span>Ca</span><select id="xs"><option value="">Cả 2 ca</option>${S.config.shifts.map(s => `<option value="${esc(s.code)}">${esc(s.name)} (${esc(s.code)})</option>`).join('')}</select></label>
@@ -2578,7 +2634,7 @@ function userModal(id) {
   const m = modal(`<h3>${u ? 'Sửa tài khoản' : 'Thêm tài khoản'}</h3>
   <label class="f"><span>Tên đăng nhập (chữ thường, không dấu)</span><input id="uu" type="text" autocapitalize="none" value="${u ? esc(u.username) : ''}" ${u ? 'disabled' : ''}></label>
   <label class="f" style="margin-top:8px"><span>Họ tên</span><input id="un" type="text" value="${u ? esc(u.full_name) : ''}"></label>
-  <label class="f" style="margin-top:8px"><span>Vai trò</span><select id="ur"><option value="manager" ${u && u.role === 'manager' ? 'selected' : ''}>Quản lý ca (xem, duyệt, trả lại, up kế hoạch)</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>Admin tổng (toàn quyền, xuất Excel)</option></select></label>
+  <label class="f" style="margin-top:8px"><span>Vai trò</span><select id="ur"><option value="manager" ${u && u.role === 'manager' ? 'selected' : ''}>Quản lý ca (xem, duyệt, trả lại, sửa phiếu, up kế hoạch)</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>Admin tổng (toàn quyền, xuất Excel)</option></select></label>
   <label class="f" style="margin-top:8px"><span>${u ? 'Mật khẩu mới (bỏ trống nếu không đổi)' : 'Mật khẩu (tối thiểu 6 ký tự)'}</span><input id="up" type="text" autocomplete="off"></label>
   ${u ? `<label class="f" style="margin-top:8px"><span>Trạng thái</span><select id="ua"><option value="1" ${u.active ? 'selected' : ''}>Hoạt động</option><option value="0" ${u.active ? '' : 'selected'}>Khóa tài khoản</option></select></label>` : ''}
   <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ugo">Lưu</button></div>`);
