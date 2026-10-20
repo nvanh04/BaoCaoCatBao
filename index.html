@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
 <meta name="theme-color" content="#0f5fa8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Báo cáo cắt bao</title>
@@ -10,66 +10,68 @@
 <style>
 :root{--pri:#0f5fa8;--pri-d:#0b4a85;--pri-l:#e6f0fa;--ok:#15803d;--ok-l:#e3f4e8;--warn:#b45309;--warn-l:#fdf0dc;--bad:#b91c1c;--bad-l:#fbe7e7;--bg:#f2f4f7;--card:#fff;--line:#d5dbe3;--txt:#1b2430;--mut:#66727f;--r:12px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--txt);padding-bottom:env(safe-area-inset-bottom)}
-button{font:inherit;color:inherit;cursor:pointer}
-input,select,textarea{font:inherit;color:inherit}
+html{-webkit-text-size-adjust:100%;scroll-behavior:auto}
+body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--txt);padding-bottom:env(safe-area-inset-bottom);overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+input,select,textarea{font:inherit;color:inherit;touch-action:manipulation}
 h1,h2,h3,h4{margin:0}
 .hide{display:none!important}
-.top{position:sticky;top:0;z-index:30;background:var(--pri);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));min-height:56px}
-.top h1{font-size:17px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.top .sub{font-size:12px;opacity:.85;font-weight:400;display:block}
-.top button{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:10px;min-height:40px;padding:0 12px;font-weight:600}
+.top{position:sticky;top:0;z-index:40;background:var(--pri);color:#fff;display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));min-height:56px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.top h1{font-size:16px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .sub{font-size:12px;opacity:.88;font-weight:400;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top button{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:10px;min-height:38px;padding:0 10px;font-weight:600;font-size:14px;flex-shrink:0}
 .top button:hover{background:rgba(255,255,255,.28)}
-.wrap{max-width:760px;margin:0 auto;padding:14px 12px 120px}
+.wrap{max-width:760px;margin:0 auto;padding:12px 10px 125px}
 .wrap.wide{max-width:1280px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:13px;margin-bottom:12px}
 .card>h2,.card>h3{font-size:17px;margin-bottom:10px}
 .mut{color:var(--mut)}.small{font-size:13px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sp{flex:1}
-.btn{border:1px solid var(--line);background:#fff;border-radius:10px;min-height:46px;padding:0 16px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;min-height:44px;padding:0 14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .btn:disabled{opacity:.5}
 .btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}.btn.pri:hover{background:var(--pri-d)}
 .btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
 .btn.ghost{background:transparent}
-.btn.lg{min-height:56px;font-size:18px;width:100%;border-radius:14px}
-.btn.sm{min-height:36px;padding:0 10px;font-size:14px}
-.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-.grid.g2{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-label.f{display:block}
+.btn.lg{min-height:54px;font-size:17px;width:100%;border-radius:14px}
+.btn.sm{min-height:36px;padding:0 10px;font-size:13px}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
+.grid.g2{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+label.f{display:block;min-width:0}
 label.f>span{display:block;font-size:13px;font-weight:600;color:#3a4654;margin-bottom:3px}
 .rq{color:var(--bad)}
-input[type=text],input[type=time],input[type=date],input[type=password],select,textarea{width:100%;min-height:46px;border:1px solid #b9c2cd;border-radius:10px;padding:8px 11px;background:#fff;font-size:16px}
+input[type=text],input[type=time],input[type=date],input[type=password],select,textarea{width:100%;min-height:44px;border:1px solid #b9c2cd;border-radius:10px;padding:8px 11px;background:#fff;font-size:16px}
 textarea{min-height:80px}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--pri);outline-offset:0;border-color:var(--pri)}
 input:disabled,select:disabled,textarea:disabled{background:#f1f3f6;color:#333;opacity:1;-webkit-text-fill-color:#333}
 input[readonly]{background:var(--pri-l)}
-label.f.big input{font-size:22px;font-weight:700;min-height:56px}
-.tin{display:flex;gap:6px}.tin input{flex:1}
-.nowb{border:1px solid var(--pri);background:var(--pri-l);color:var(--pri);border-radius:10px;padding:0 10px;font-weight:600;font-size:13px;white-space:nowrap}
+label.f.big input{font-size:21px;font-weight:700;min-height:52px}
+.tin{display:flex;gap:6px}.tin input{flex:1;min-width:0}
+.nowb{border:1px solid var(--pri);background:var(--pri-l);color:var(--pri);border-radius:10px;padding:0 10px;font-weight:600;font-size:13px;white-space:nowrap;min-height:44px}
 fieldset{border:1px solid var(--line);border-radius:10px;margin:10px 0 0;padding:8px 10px 12px;min-width:0}
 fieldset>legend{font-weight:700;font-size:14px;color:var(--pri);padding:0 6px}
-.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:700;white-space:nowrap}
+.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;white-space:nowrap}
 .b-draft{background:#e8ebef;color:#46515e}.b-submitted{background:var(--warn-l);color:var(--warn)}
 .b-approved{background:var(--ok-l);color:var(--ok)}.b-rejected{background:var(--bad-l);color:var(--bad)}
-.note{border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:15px}
+.note{border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:14px;line-height:1.45}
 .note.bad{background:var(--bad-l);color:#7f1414;border:1px solid #f0bcbc}
 .note.ok{background:var(--ok-l);color:#0d5a2b;border:1px solid #b5e0c3}
 .note.info{background:var(--pri-l);color:#0b3d6e;border:1px solid #bcd6ee}
 .note.warn{background:var(--warn-l);color:#7c3705;border:1px solid #f5d4a4}
 .rcard{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:center}
 .rcard:hover{border-color:var(--pri)}
-.rcard .t{font-weight:700;font-size:17px}
-.rcard .r{text-align:right}
+.rcard .t{font-weight:700;font-size:16px}
+.rcard .r{text-align:right;flex-shrink:0}
+.tscroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--r);background:#fff}
 table.rt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tscroll table.rt{border:0;border-radius:0}
 table.rt th{background:#eef2f6;text-align:left;font-size:13px;padding:9px 10px;white-space:nowrap}
 table.rt td{padding:9px 10px;border-top:1px solid var(--line);vertical-align:middle}
 table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 .seg{display:flex;gap:5px}
-.seg button{flex:1;min-height:46px;border:1px solid #b9c2cd;background:#fff;border-radius:10px;font-weight:600;font-size:15px;padding:0 6px}
+.seg button{flex:1;min-height:44px;border:1px solid #b9c2cd;background:#fff;border-radius:10px;font-weight:600;font-size:14px;padding:0 6px}
 .seg button.on{background:var(--pri);border-color:var(--pri);color:#fff}
 .seg button.on.ok{background:var(--ok);border-color:var(--ok)}
 .seg button.on.ng{background:var(--bad);border-color:var(--bad)}
@@ -77,74 +79,82 @@ table.rt tr.clk{cursor:pointer}table.rt tr.clk:hover td{background:var(--pri-l)}
 .seg button:disabled{opacity:.7}
 .seg .sh{display:none}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{border:1px solid #b9c2cd;background:#fff;border-radius:999px;min-height:42px;padding:0 14px;font-weight:600}
+.chip{border:1px solid #b9c2cd;background:#fff;border-radius:999px;min-height:40px;padding:0 13px;font-weight:600;font-size:14px}
 .chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
 .chip.add{border-style:dashed;color:var(--pri);border-color:var(--pri)}
-.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:10px 0}
-.tab{flex:1 0 auto;min-height:48px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:4px 12px;font-weight:700;font-size:14px;text-align:center;line-height:1.2}
-.tab small{display:block;font-weight:500;font-size:11px;color:var(--mut)}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:10px 0}
+.tab{min-height:50px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:4px 4px;font-weight:700;font-size:13px;text-align:center;line-height:1.2;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.tab small{display:block;font-weight:500;font-size:11px;color:var(--mut);margin-top:2px}
 .tab.on{background:var(--pri);border-color:var(--pri);color:#fff}.tab.on small{color:#d6e6f6}
 .tab.done small{color:var(--ok);font-weight:700}.tab.on.done small{color:#bdf0cf}
 .roll{border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;background:#fff;overflow:hidden}
-.roll>.rh{display:flex;gap:8px;align-items:center;padding:10px 12px;background:#f5f7fa;cursor:pointer;width:100%;border:0;text-align:left}
-.roll>.rh b{flex:1}
+.roll>.rh{display:flex;gap:8px;align-items:center;padding:11px 12px;background:#f5f7fa;cursor:pointer;width:100%;border:0;text-align:left}
+.roll>.rh b{flex:1;font-size:15px}
 .roll>.rb{padding:6px 12px 14px}
 .qg{margin-top:14px}
 .qg>h4{background:var(--pri-l);color:var(--pri-d);padding:7px 10px;border-radius:8px;font-size:15px}
 .qrow{display:grid;grid-template-columns:1fr;gap:6px;padding:10px 2px;border-bottom:1px solid var(--line)}
 .ql{font-weight:600;font-size:15px}
-.ql .yc{display:block;font-weight:500;font-size:13px;color:var(--pri)}
+.ql .yc{display:block;font-weight:500;font-size:13px;color:var(--pri);margin-top:2px}
 .qcells{display:flex;gap:8px}
 .qcell{flex:1;min-width:0;display:none}
 .qcell.cur{display:block}
-.lanlbl{display:block;font-size:12px;color:var(--mut);margin-bottom:2px}
-.two{display:flex;gap:6px}.two input{min-width:0}
+.lanlbl{display:block;font-size:12px;color:var(--pri);font-weight:700;margin-bottom:3px}
+.two{display:flex;gap:6px}.two input{min-width:0;flex:1}
 .qhead{display:none}
-.lantabs{display:flex;gap:6px;overflow-x:auto;margin:10px 0}
+.lanbar{position:sticky;top:56px;z-index:20;background:rgba(255,255,255,.97);backdrop-filter:blur(6px);padding:8px 0;border-bottom:1px solid var(--line);margin:8px 0}
+.lantabs{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
 .lantabs .chip{flex:0 0 auto}
 .qact{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
-.savebar{position:fixed;left:0;right:0;bottom:0;z-index:25;background:#fff;border-top:1px solid var(--line);padding:8px 12px;padding-bottom:max(8px,env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(0,0,0,.08)}
+/* Chế độ xem tất cả các lần kiểm tra trên điện thoại giống máy tính */
+.qc-all-cols .qcells{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.qc-all-cols .qcell{display:block!important;min-width:165px;background:#f8fafc;padding:6px;border-radius:8px;border:1px solid #e2e8f0}
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:35;background:#fff;border-top:1px solid var(--line);padding:8px 12px;padding-bottom:max(8px,env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(0,0,0,.08)}
 .savebar .in{max-width:760px;margin:0 auto;display:flex;gap:8px;align-items:center}
 .savebar.wide .in{max-width:1280px}
 .savebar .st{font-size:12px;color:var(--mut);min-width:85px;line-height:1.2}
 .savebar .btn{flex:1}
 .mback{position:fixed;inset:0;background:rgba(15,25,40,.55);z-index:100;display:flex;align-items:flex-end;justify-content:center}
-.modal{background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px;padding-bottom:max(18px,env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
-.modal.wide{max-width:720px}
-.modal h3{font-size:19px;margin-bottom:10px}
+.modal{background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px;padding-bottom:max(18px,env(safe-area-inset-bottom));max-height:92vh;overflow:auto;-webkit-overflow-scrolling:touch}
+.modal.wide{max-width:760px}
+.modal h3{font-size:18px;margin-bottom:10px}
 .modal .row.end{justify-content:flex-end;margin-top:14px}
 @media(min-width:700px){.mback{align-items:center}.modal{border-radius:18px}}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;width:max-content;max-width:min(88vw,420px);text-align:center;background:#1b2430;color:#fff;border-radius:12px;padding:11px 16px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.3);font-weight:600}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;width:max-content;max-width:min(90vw,420px);text-align:center;background:#1b2430;color:#fff;border-radius:12px;padding:11px 16px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.3);font-weight:600;font-size:14px}
 .toast.bad{background:var(--bad)}.toast.ok{background:var(--ok)}
 .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
 .center .card{width:100%;max-width:430px;padding:22px}
 .logo{width:64px;height:64px;border-radius:16px;background:var(--pri);margin:0 auto 12px;display:flex;align-items:center;justify-content:center}
 .steps li{margin-bottom:8px}
-.nav{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}
-.nav button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:10px;min-height:44px;padding:0 14px;font-weight:700}
+.nav{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;padding-bottom:4px}
+.nav button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:10px;min-height:42px;padding:0 13px;font-weight:700;font-size:14px}
 .nav button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .nav .cnt{background:var(--bad);color:#fff;border-radius:999px;padding:0 7px;font-size:12px;margin-left:4px}
-.filters{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));align-items:end}
+.filters{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));align-items:end}
 .upbox{border:2px dashed var(--pri);background:var(--pri-l);border-radius:12px;padding:18px;text-align:center;cursor:pointer;display:block}
 .upbox:hover{background:#d8e8f8}
 @media(max-width:899px){
-  table.rt thead{display:none}
-  table.rt,table.rt tbody,table.rt tr,table.rt td{display:block;width:100%}
-  table.rt tr{border-top:8px solid var(--bg);padding:6px 4px}
-  table.rt td{border:0;padding:3px 10px;display:flex;justify-content:space-between;gap:10px}
-  table.rt td::before{content:attr(data-l);color:var(--mut);font-size:13px}
-  table.rt td.num{text-align:right}
+  table.rt:not(.keep-tbl) thead{display:none}
+  table.rt:not(.keep-tbl),table.rt:not(.keep-tbl) tbody,table.rt:not(.keep-tbl) tr,table.rt:not(.keep-tbl) td{display:block;width:100%}
+  table.rt:not(.keep-tbl) tr{border-top:8px solid var(--bg);padding:8px 4px}
+  table.rt:not(.keep-tbl) tr:first-child{border-top:0}
+  table.rt:not(.keep-tbl) td{border:0;padding:4px 10px;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:right}
+  table.rt:not(.keep-tbl) td::before{content:attr(data-l);color:var(--mut);font-size:13px;font-weight:600;text-align:left;flex-shrink:0}
+  table.rt:not(.keep-tbl) td.act-cell{justify-content:flex-end;padding-top:8px;border-top:1px dashed var(--line);margin-top:4px}
+  table.rt:not(.keep-tbl) td.act-cell::before{display:none}
+  table.rt:not(.keep-tbl) td.empty-cell{justify-content:center;text-align:center;padding:16px}
+  table.rt:not(.keep-tbl) td.empty-cell::before{display:none}
 }
 @media(min-width:900px){
-  .wrap{max-width:1100px;padding-bottom:110px}
+  .wrap{max-width:1100px;padding:14px 14px 115px}
   .btn.lg{width:auto;min-width:340px}
   .qrow{grid-template-columns:minmax(260px,32%) 1fr;align-items:center;gap:12px}
   .qcell,.qcell.cur{display:block}
   .lanlbl{display:none}
-  .lantabs .chip[data-act=lan]{display:none}
-  .qhead{display:grid;grid-template-columns:minmax(260px,32%) 1fr;gap:12px;position:sticky;top:56px;background:#fff;z-index:5;padding:8px 2px;border-bottom:2px solid var(--pri)}
+  .lanbar .chip[data-act=lan],.lanbar .chip[data-act=togqcall]{display:none}
+  .qhead{display:grid;grid-template-columns:minmax(260px,32%) 1fr;gap:12px;position:sticky;top:56px;background:#fff;z-index:15;padding:8px 2px;border-bottom:2px solid var(--pri)}
   .qhead .qcells>div{flex:1;text-align:center;font-weight:700}
-  .seg button{min-height:38px;padding:0 2px}
+  .seg button{min-height:38px;padding:0 4px}
   .seg .sh{display:inline}.seg .lg{display:none}
   .seg.neutral .lg{display:inline}
   .qcell .tin{flex-direction:column}
@@ -283,14 +293,14 @@ function defaults() {
 
 const S = {
   deviceId: '', token: '', me: null, config: null, view: '',
-  rep: null, pid: 0, step: 1, lan: 0, dirty: false, saving: false,
+  rep: null, pid: 0, step: 1, lan: 0, qcAllCols: false, dirty: false, saving: false,
   headOpen: false, rollOpen: {}, ro: false, list: [], f: null, tab: 'pending',
   parsedPlan: null,
   cache: { users: null, devices: null, reports: {}, plans: null }
 };
 
 // ============================================================================
-// BỘ ĐỌC FILE EXCEL KẾ HOẠCH (.XLSX) TRỰC TIẾP TRÊN TRÌNH DUYỆT (KHÔNG CẦN THƯ VIỆN)
+// BỘ ĐỌC FILE EXCEL KẾ HOẠCH (.XLSX) TRỰC TIẾP TRÊN TRÌNH DUYỆT (CHUẨN XÁC)
 // ============================================================================
 async function unzipXlsx(arrayBuffer) {
   const buf = new Uint8Array(arrayBuffer);
@@ -341,6 +351,28 @@ function colLettersToIndex(letters) {
   return idx - 1;
 }
 
+function parseExcelDateVal(rawVal, sheetName) {
+  const s = String(rawVal || '').trim();
+  // 1. Số serial của Excel (VD: 46315)
+  if (/^\d{5}(\.\d+)?$/.test(s)) {
+    const serial = Math.floor(Number(s));
+    const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+    return `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}`;
+  }
+  // 2. Định dạng yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // 3. Định dạng dd/mm/yyyy hoặc dd-mm-yyyy
+  const mVN = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec(s);
+  if (mVN) return `${mVN[3]}-${pad(mVN[2])}-${pad(mVN[1])}`;
+  // 4. Suy luận từ tên Sheet dạng N(20) hoặc D(20) nếu có
+  const mSh = /[ND]\s*\(\s*(\d{1,2})\s*\)/i.exec(String(sheetName || ''));
+  if (mSh) {
+    const p = vnParts();
+    return `${p.y}-${p.m}-${pad(mSh[1])}`;
+  }
+  return defaults().date;
+}
+
 async function parsePlanXlsxFile(file) {
   const ab = await file.arrayBuffer();
   const files = await unzipXlsx(ab);
@@ -359,15 +391,30 @@ async function parsePlanXlsxFile(file) {
     }
   }
 
-  // 2. Lấy tên Sheet đầu tiên từ workbook.xml
+  // 2. Lấy tên Sheet đầu tiên và đường dẫn XML chính xác từ workbook.xml & workbook.xml.rels
   let sheetName = 'Sheet1';
+  let targetXmlPath = 'xl/worksheets/sheet1.xml';
   if (files['xl/workbook.xml']) {
     const wbDoc = parser.parseFromString(files['xl/workbook.xml'], 'application/xml');
     const shNode = wbDoc.getElementsByTagName('sheet')[0];
-    if (shNode && shNode.getAttribute('name')) sheetName = shNode.getAttribute('name');
+    if (shNode) {
+      if (shNode.getAttribute('name')) sheetName = shNode.getAttribute('name');
+      const rId = shNode.getAttribute('r:id') || shNode.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+      if (rId && files['xl/_rels/workbook.xml.rels']) {
+        const relDoc = parser.parseFromString(files['xl/_rels/workbook.xml.rels'], 'application/xml');
+        const rels = relDoc.getElementsByTagName('Relationship');
+        for (let i = 0; i < rels.length; i++) {
+          if (rels[i].getAttribute('Id') === rId) {
+            const t = rels[i].getAttribute('Target') || '';
+            targetXmlPath = t.startsWith('xl/') ? t : 'xl/' + t.replace(/^\/+/, '');
+            break;
+          }
+        }
+      }
+    }
   }
 
-  const sheetXmlKey = Object.keys(files).find(k => /^xl\/worksheets\/sheet\d+\.xml$/.test(k));
+  const sheetXmlKey = files[targetXmlPath] ? targetXmlPath : Object.keys(files).find(k => /^xl\/worksheets\/sheet\d+\.xml$/.test(k));
   if (!sheetXmlKey) throw new Error('Không tìm thấy dữ liệu trang tính trong file Excel');
 
   const shDoc = parser.parseFromString(files[sheetXmlKey], 'application/xml');
@@ -406,18 +453,14 @@ async function parsePlanXlsxFile(file) {
 
   const cellVal = (r, c) => (grid[r] && grid[r][c]) ? grid[r][c].val : '';
 
-  // Nhận diện Ca làm việc ở C1 (row 1, col 2)
-  let shift = cellVal(1, 2) || defaults().shift;
-  // Nhận diện Ngày kế hoạch ở D1 (row 1, col 3) hoặc tên Sheet kiểu N(20), D(20)
-  let planDate = defaults().date;
-  const d1 = cellVal(1, 3);
-  if (d1 && /^\d{5}(\.\d+)?$/.test(d1)) {
-    const serial = Math.floor(Number(d1));
-    const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
-    planDate = `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}`;
-  } else if (/^\d{4}-\d{2}-\d{2}/.test(d1)) {
-    planDate = d1.slice(0, 10);
+  // Nhận diện Ca làm việc ở C1 (row 1, col 2) hoặc từ tên Sheet N(...) / D(...)
+  let shift = cellVal(1, 2);
+  if (!shift) {
+    if (/^N\b|CA\s*NG/i.test(sheetName)) shift = '1N1';
+    else if (/^D\b|CA\s*Đ/i.test(sheetName)) shift = '2D1';
+    else shift = defaults().shift;
   }
+  const planDate = parseExcelDateVal(cellVal(1, 3), sheetName);
 
   // Duyệt từ dòng 3 trở đi để lấy danh sách máy (Cột A = index 0) và các đơn hàng
   const machinesSet = new Set();
@@ -451,8 +494,8 @@ async function parsePlanXlsxFile(file) {
         lenh_sx: lenhSx,
         loai_bao: loaiBao,
         mo_ta: moTa,
-        dai_cat: daiCat,
-        dinh_luong: dinhLuong,
+        dai_cat: (daiCat && daiCat !== '0') ? daiCat : '',
+        dinh_luong: (dinhLuong && dinhLuong !== '0') ? dinhLuong : '',
         ma_pe: (maPe && maPe !== '0') ? maPe : '',
         sl_ke_hoach: toInt(slKeHoach),
         phuong_phap: phuongPhap
@@ -471,7 +514,7 @@ async function parsePlanXlsxFile(file) {
   };
 }
 
-// Tạo sản phẩm từ 1 dòng kế hoạch (sườn gợi ý cho công nhân)
+// Tạo sản phẩm từ 1 dòng kế hoạch (sườn gợi ý đầy đủ cho công nhân)
 function createProductFromPlanItem(it, workerName) {
   const p = newProduct();
   p.ma_dh = defVal(it.ma_dh, '');
@@ -479,7 +522,8 @@ function createProductFromPlanItem(it, workerName) {
   p.c01_name = workerName || S.rep?.worker_name || S.me?.name || '';
   if (p.rolls && p.rolls[0]) {
     p.rolls[0].ma_kh = defVal(it.ma_kh, '');
-    if (it.ma_pe) p.rolls[0].ma_pe = it.ma_pe;
+    if (it.ma_pe) p.rolls[0].ma_pe = String(it.ma_pe);
+    if (it.dai_cat) p.rolls[0].dai_cat = String(it.dai_cat);
   }
   if (it.dinh_luong) p.qc.yc.dinhluong = String(it.dinh_luong);
   p.plan_meta = {
@@ -547,7 +591,6 @@ const LocalDB = {
     if (p === '/api/config') return { ...settings, server_time: nowStr() };
     if (p === '/api/me') return getMeObj();
 
-    // API Quản lý Kế hoạch sản xuất (Plans)
     if (p === '/api/plans' && method === 'GET') {
       if (q.date && q.shift && q.machine) {
         const key = `${q.date}_${q.shift}`;
@@ -627,7 +670,6 @@ const LocalDB = {
       const id = reports.length ? Math.max(...reports.map(x => x.id)) + 1 : 1;
       const dev = devices[S.deviceId] ? devices[S.deviceId] : { name: localStorage.getItem('cb_dev_name') || 'Công nhân' };
 
-      // Tự động lấy sườn kế hoạch nếu có cho Ngày + Ca + Máy đó
       const planItems = getLocalPlanItems(body.report_date, body.shift, body.machine);
       const initProducts = planItems.map(it => createProductFromPlanItem(it, dev.name));
 
@@ -868,11 +910,12 @@ async function api(method, url, body) {
 // UI HELPERS (TOAST, MODAL, EXCEL GENERATOR)
 // ============================================================================
 function toast(msg, type = '') {
+  $$('.toast').forEach(el => el.remove());
   const t = document.createElement('div');
   t.className = 'toast ' + type;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), type === 'bad' ? 4500 : 2500);
+  setTimeout(() => t.remove(), type === 'bad' ? 4200 : 2300);
 }
 function modal(html, wide) {
   const m = document.createElement('div');
@@ -901,7 +944,11 @@ function askText(title, label, okLabel = 'Gửi', type = 'text') {
     });
   });
 }
-const keepScroll = fn => { const y = window.scrollY; fn(); window.scrollTo(0, y); };
+const keepScroll = fn => {
+  const y = window.scrollY;
+  fn();
+  requestAnimationFrame(() => window.scrollTo(0, y));
+};
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -1085,7 +1132,7 @@ function renderWorkerList(reports) {
   const el = $('#lst');
   if (!el) return;
   el.innerHTML = reports.length ? reports.map(x => `<button class="rcard" data-act="open" data-id="${x.id}">
-    <div class="sp"><div class="t">Máy ${esc(x.machine)} · ${esc(x.shift)}</div><div class="mut">${fd(x.report_date)} · ${x.n_products} sản phẩm</div>
+    <div class="sp"><div class="t">Máy ${esc(x.machine)} · ${esc(x.shift)}</div><div class="mut">${fd(x.report_date)} · ${x.n_products} sản phẩm · ${esc(x.worker_name)}</div>
     ${x.status === 'rejected' ? `<div class="small" style="color:var(--bad);margin-top:3px">⚠ ${esc(x.manager_note)}</div>` : ''}</div>
     <div class="r">${badge(x.status)}<div class="small mut" style="margin-top:4px">${fmtN(x.total)} cái</div></div></button>`).join('')
     : '<div class="note info">Chưa có phiếu nào. Bấm nút xanh ở trên để tạo phiếu cho ca làm việc.</div>';
@@ -1093,9 +1140,9 @@ function renderWorkerList(reports) {
 
 async function workerHome(fromBoot = false) {
   S.view = 'wHome'; S.rep = null;
-  app.innerHTML = `<div class="top"><h1>Báo cáo cắt bao<span class="sub">${esc(S.me.name)}</span></h1><button data-act="help">? Hướng dẫn</button><button data-act="editme">⚙</button></div>
+  app.innerHTML = `<div class="top"><h1>Báo cáo cắt bao<span class="sub">${esc(S.me.name)} ${S.me.last_machine ? '· Máy ' + esc(S.me.last_machine) : ''}</span></h1><button data-act="help">? Hướng dẫn</button><button data-act="editme">⚙</button></div>
   <div class="wrap"><button class="btn pri lg" data-act="newrep">＋ Tạo phiếu báo cáo mới</button>
-  <h3 style="margin:18px 0 8px">Phiếu của tôi</h3><div id="lst"><p class="mut">Đang tải…</p></div></div>`;
+  <h3 style="margin:18px 0 8px">Phiếu của tôi / Máy của tôi</h3><div id="lst"><p class="mut">Đang tải…</p></div></div>`;
 
   const cached = S.list.length ? S.list : LocalDB.handle('GET', '/api/reports').reports;
   if (cached && cached.length) renderWorkerList(cached);
@@ -1122,7 +1169,9 @@ function newRepModal() {
   <div id="plan_preview" style="margin-top:10px"></div>
   <div class="row end"><button class="btn" data-close>Hủy</button><button class="btn pri" id="ngo" style="flex:1">Bắt đầu điền phiếu</button></div>`);
 
+  let previewSeq = 0;
   const updatePreview = async () => {
+    const seq = ++previewSeq;
     const rDate = $('#nd', m).value;
     const code = $('#ns button.on', m)?.dataset.code || d.shift;
     const mach = $('#nm', m).value;
@@ -1134,7 +1183,7 @@ function newRepModal() {
         if (res && Array.isArray(res.items)) items = res.items;
       } catch (e) {}
     }
-    if (!box) return;
+    if (seq !== previewSeq || !box) return;
     if (items.length) {
       box.innerHTML = `<div class="note ok small" style="margin:0">📋 <b>Đã tìm thấy ${items.length} đơn trong Kế hoạch SX</b> của máy <b>${esc(mach)}</b>:<br>${items.map((it, i) => `${i + 1}. ĐH: <b>${esc(it.ma_dh)}</b> · KH: <b>${esc(it.ma_kh)}</b> · SP: <b>${esc(it.ma_sp)}</b>${it.sl_ke_hoach ? ` (${fmtN(it.sl_ke_hoach)} cái)` : ''}`).join('<br>')}<br><span class="mut">Hệ thống sẽ điền sẵn làm sườn, bạn có thể sửa lại theo thực tế.</span></div>`;
     } else {
@@ -1186,7 +1235,7 @@ function helpModal() {
   <li><b>Tạo phiếu</b>: kiểm tra ngày – ca – máy (mã máy cũ Cột A), bấm “Bắt đầu”. Nếu quản lý đã tải kế hoạch lên, phiếu sẽ <b>tự động có sẵn sườn Mã ĐH, Mã KH, Mã SP</b> của máy đó.</li>
   <li><b>Điều chỉnh theo thực tế</b>: sườn kế hoạch chỉ là gợi ý. Nếu thực tế chạy khác kế hoạch, bạn có thể sửa trực tiếp Mã ĐH, Mã SP, Mã KH, xóa bớt đơn không chạy hoặc bấm <b>＋ Thêm sản phẩm</b>.</li>
   <li><b>Điền 4 bước</b>: <b>① Đơn hàng & CN</b> → <b>② Cuộn</b> → <b>③ Thông số máy</b> → <b>④ Phiếu kiểm tra</b>.</li>
-  <li>Phiếu kiểm tra chất lượng: bấm <b>Đạt</b> / <b>Không đạt</b> từng dòng. Nhanh nhất: bấm <b>“✓ Đạt hết”</b> rồi sửa dòng nào không đạt.</li>
+  <li>Ở bước ④ trên điện thoại: bạn có thể bấm nút <b>“👁 Xem dạng bảng”</b> để nhìn tất cả các lần kiểm tra song song giống như trên máy tính.</li>
   <li>Điền xong bấm <b>“💾 Lưu”</b> hoặc <b>“📤 Gửi duyệt”</b>.</li></ol>
   <div class="row end"><button class="btn pri" data-close>Đã hiểu</button></div>`);
 }
@@ -1307,7 +1356,6 @@ function prepareReportForEdit(r) {
   S.rep.data.products = defVal(S.rep.data.products, []);
   S.ro = !(isWorker() ? S.rep.status !== 'approved' : isAdmin());
 
-  // Nếu phiếu mới tinh chưa có SP nào, kiểm tra xem có sườn Kế hoạch ở Local không
   if (!S.ro && !S.rep.data.products.length) {
     const planItems = S.rep.data.plan_items || getLocalPlanItems(S.rep.report_date, S.rep.shift, S.rep.machine);
     if (Array.isArray(planItems) && planItems.length) {
@@ -1481,7 +1529,7 @@ function TF(path, label, o = {}) {
 }
 function SEG(path, opts, cls = '') {
   const v = defVal(getPath(S.rep, path), '');
-  return `<div class="seg neutral ${cls}">${opts.map(([k, l]) => `<button type="button" class="${v === k ? 'on' : ''}" data-act="seg" data-p="${path}" data-v="${k}" data-tog="1">${l}</button>`).join('')}</div>`;
+  return `<div class="seg neutral ${cls}">${opts.map(([k, l]) => `<button type="button" class="${v === k ? 'on' : ''}" data-act="seg" data-p="${path}" data-v="${k}" data-tog="1"><span class="lg">${l}</span></button>`).join('')}</div>`;
 }
 function TOG(path, label) {
   const v = getPath(S.rep, path);
@@ -1496,7 +1544,7 @@ function pStat(p) {
     4: p.qc.lans.every(lanDone)
   };
 }
-const STEPS = [[1, '① Đơn hàng'], [2, '② Cuộn'], [3, '③ Thông số máy'], [4, '④ Phiếu kiểm tra']];
+const STEPS = [[1, '① Đơn hàng'], [2, '② Cuộn'], [3, '③ Thông số'], [4, '④ Kiểm tra']];
 
 function recalcTotal(P) {
   const p = prods()[P];
@@ -1521,10 +1569,40 @@ function renderStepBody() {
   const pb = $('#pbody');
   if (!pb) return renderEditor();
   const P = S.pid;
+  pb.classList.toggle('qc-all-cols', S.step === 4 && S.qcAllCols);
   pb.innerHTML = S.step === 1 ? step1(P) : S.step === 2 ? step2(P) : S.step === 3 ? step3(P) : step4(P);
   $$('.tabs .tab').forEach((tab, idx) => tab.classList.toggle('on', idx + 1 === S.step));
   refreshStepTabs();
   applyReadOnlyState(pb);
+}
+
+// Đồng bộ lại sườn kế hoạch khi người dùng đổi Ngày / Ca / Máy ở đầu phiếu
+async function syncPlanAfterHeaderChange() {
+  if (!S.rep || S.ro) return;
+  const r = S.rep;
+  let items = getLocalPlanItems(r.report_date, r.shift, r.machine);
+  if (!items.length) {
+    try {
+      const res = await api('GET', `/api/plans?date=${encodeURIComponent(r.report_date)}&shift=${encodeURIComponent(r.shift)}&machine=${encodeURIComponent(r.machine)}`);
+      if (res && Array.isArray(res.items)) items = res.items;
+    } catch (e) {}
+  }
+  r.data.plan_items = items;
+  if (items.length) {
+    const hasEnteredActual = prods().some(p => toInt(p.tong_cai) > 0 || p.bat_dau || p.ket_thuc);
+    if (!hasEnteredActual) {
+      r.data.products = items.map(it => createProductFromPlanItem(it, r.worker_name));
+      S.pid = 0;
+      markDirty();
+      renderEditor();
+      toast(`Đã cập nhật ${items.length} đơn theo Kế hoạch của Máy ${r.machine} ✓`, 'ok');
+    } else {
+      toast(`Máy ${r.machine} có ${items.length} đơn trong Kế hoạch (bấm "Chọn đơn từ KH" nếu muốn nạp)`, 'ok');
+      renderEditor();
+    }
+  } else {
+    renderEditor();
+  }
 }
 
 function renderEditor() {
@@ -1537,18 +1615,18 @@ function renderEditor() {
   if (r.status === 'approved') h += `<div class="note ok">✓ Đã được <b>${esc(r.approved_by)}</b> duyệt lúc ${esc(appTime.time)} ${esc(appTime.date)}. ${isWorker() ? 'Phiếu đã khóa, không sửa được.' : ''}</div>`;
   if (r.status === 'submitted' && isWorker()) h += `<div class="note info">Phiếu đã gửi, đang chờ quản lý duyệt. Bạn vẫn có thể sửa nếu phát hiện sai.</div>`;
   h += `<div class="card"><div class="row"><div class="sp"><b>Ngày ${fd(r.report_date)}</b> · Ca <b>${esc(r.shift)}</b> · Máy <b>${esc(r.machine)}</b><div class="small mut">Người nhập: ${esc(r.worker_name)}</div></div>
-   ${S.ro ? '' : `<button class="btn sm" data-act="head">${S.headOpen ? 'Xong' : 'Sửa ngày / ca / máy'}</button>`}</div>`;
+   ${S.ro ? '' : `<button class="btn sm" data-act="head">${S.headOpen ? 'Đóng' : 'Sửa ngày / ca / máy'}</button>`}</div>`;
   if (S.headOpen && !S.ro) {
     h += `<div class="grid g2" style="margin-top:10px"><label class="f"><span>Ngày sản xuất</span><input type="date" data-p="report_date" data-re="1" value="${esc(r.report_date)}"></label>
     <label class="f"><span>Máy cắt (Cột A)</span><select data-p="machine" data-re="1">${[...new Set([...S.config.machines, r.machine])].map(m => `<option ${m === r.machine ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
-    <div><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span><div class="seg neutral" style="margin-top:3px">${S.config.shifts.map(s => `<button type="button" class="${s.code === r.shift ? 'on' : ''}" data-act="seg" data-p="shift" data-v="${esc(s.code)}" data-re="1">${esc(s.name)}<br><small>${esc(s.code)}</small></button>`).join('')}</div></div>
+    <div><span style="font-size:13px;font-weight:600;color:#3a4654">Ca làm việc</span><div class="seg neutral" style="margin-top:3px">${S.config.shifts.map(s => `<button type="button" class="${s.code === r.shift ? 'on' : ''}" data-act="seg" data-p="shift" data-v="${esc(s.code)}" data-re="1"><span class="lg">${esc(s.name)}<br><small>${esc(s.code)}</small></span></button>`).join('')}</div></div>
     ${F('worker_name', 'Tên người nhập (C01)')}</div>`;
   }
   h += `</div>`;
   h += `<div class="chips" style="margin-bottom:8px">${prods().map((x, i) => `<button class="chip ${i === P ? 'on' : ''}" data-act="prod" data-i="${i}">SP ${i + 1}${x.ma_sp ? ': ' + esc(x.ma_sp) : ''}</button>`).join('')}${S.ro ? '' : '<button class="chip add" data-act="addprod">＋ Thêm sản phẩm</button>'}</div>`;
   const st = pStat(p);
-  h += `<div class="tabs">${STEPS.map(([n, l]) => `<button class="tab ${S.step === n ? 'on' : ''} ${st[n] ? 'done' : ''}" data-act="step" data-n="${n}">${l}<small>${st[n] ? '✓ xong' : 'chưa xong'}</small></button>`).join('')}</div>`;
-  h += `<div class="card" id="pbody">${S.step === 1 ? step1(P) : S.step === 2 ? step2(P) : S.step === 3 ? step3(P) : step4(P)}</div>`;
+  h += `<div class="tabs">${STEPS.map(([n, l]) => `<button class="tab ${S.step === n ? 'on' : ''} ${st[n] ? 'done' : ''}" data-act="step" data-n="${n}"><span>${l}</span><small>${st[n] ? '✓ xong' : 'chưa xong'}</small></button>`).join('')}</div>`;
+  h += `<div class="card ${S.step === 4 && S.qcAllCols ? 'qc-all-cols' : ''}" id="pbody">${S.step === 1 ? step1(P) : S.step === 2 ? step2(P) : S.step === 3 ? step3(P) : step4(P)}</div>`;
   h += `<div class="card"><div class="row"><b>Tổng cắt cả phiếu:</b><span class="sp"></span><b style="font-size:20px"><span id="grand">${fmtN(prods().reduce((a, x) => a + toInt(x.tong_cai), 0))}</span> cái</b></div></div>`;
   if (prods().length > 1 && !S.ro) h += `<button class="btn bad sm" data-act="delprod">🗑 Xóa sản phẩm ${P + 1} này (nếu thực tế không chạy)</button>`;
   h += `</div>` + saveBar();
@@ -1633,26 +1711,31 @@ const nextBtn = n => S.ro ? '' : `<div style="margin-top:14px"><button class="bt
 
 function step2(P) {
   const p = prods()[P];
-  return `<h3>② Các cuộn đã cắt</h3><p class="small mut">Mỗi cuộn PP cắt xong ghi 1 thẻ. Mã KH được điền sẵn từ kế hoạch (Cột F), bạn có thể sửa lại nếu thực tế thay đổi.</p>
-  ${p.rolls.map((r, i) => rollHTML(P, i)).join('')}
+  return `<h3>② Các cuộn đã cắt</h3><p class="small mut">Mỗi cuộn PP cắt xong ghi 1 thẻ. Mã KH và Chiều dài cắt được điền sẵn từ kế hoạch, bạn có thể sửa lại nếu thực tế thay đổi.</p>
+  <div id="rolls_wrap">${p.rolls.map((r, i) => rollHTML(P, i)).join('')}</div>
   ${S.ro ? '' : `<button class="btn" style="width:100%" data-act="addroll">＋ Thêm cuộn</button>`}${nextBtn(3)}`;
 }
 
 function rollHTML(P, R) {
   const p = prods()[P], r = p.rolls[R], b = `data.products.${P}.rolls.${R}.`;
   const open = S.rollOpen[r.id] ?? (R === p.rolls.length - 1);
-  let h = `<div class="roll"><button class="rh" data-act="togroll" data-id="${r.id}"><b>Cuộn ${R + 1}${r.ma_kh ? ' · KH: ' + esc(r.ma_kh) : ''}${r.cuon_so_may_so ? ' · ' + esc(r.cuon_so_may_so) : ''}</b><span class="${toInt(r.so_cai) ? '' : 'mut'}">${toInt(r.so_cai) ? fmtN(toInt(r.so_cai)) + ' cái' : 'chưa nhập'}</span><span>${open ? '▲' : '▼'}</span></button>`;
-  if (open) {
-    h += `<div class="rb"><div class="grid g2" style="margin-top:6px">${FI(b + 'so_cai', 'Số cái cắt được', { req: 1, cls: 'big' })}</div>
-    <fieldset><legend>Thông tin đầu cuộn Dệt / Tráng / Lộn / In flexo</legend><div class="grid">${F(b + 'ma_kh', 'Mã KH (Cột F)')}${F(b + 'cuon_so_may_so', 'Cuộn số và Máy số')}${F(b + 'ca_ngay_sx', 'Ca và ngày sản xuất')}${FN(b + 'kg_dau_cuon', 'Số kg / mét đầu cuộn')}</div></fieldset>
-    <fieldset><legend>Thông tin cuộn PE (Có thể để trống nếu không lồng PE)</legend><div class="grid">${F(b + 'ma_pe', 'Mã PE')}${F(b + 'cuon_pe', 'Cuộn số / Máy thổi số')}${F(b + 'ca_ngay_thoi', 'Ca, ngày thổi')}</div></fieldset>
-    <fieldset><legend>Sản phẩm cắt thực tế</legend><div class="grid">${FN(b + 'kho_bao', 'Khổ bao (cm)')}${FN(b + 'dai_cat', 'Chiều dài cắt sau may (cm)')}${FN(b + 'dl10', 'ĐL 10 cái đầu cuộn (g)')}</div></fieldset>
-    <fieldset><legend>Phế liệu & râu</legend><div class="grid">${FN(b + 'phe_co_dau', 'Phế liệu CÓ đánh dấu (kg)')}${FI(b + 'phe_khong_dau', 'Phế liệu KHÔNG đánh dấu (cái)')}${FI(b + 'rau_bo', 'Râu bỏ')}${FI(b + 'rau_dem', 'Râu đếm')}</div></fieldset>
-    <div class="row" style="margin-top:12px"><div class="sp"><b>Quản lý xác nhận cắt hàng loạt:</b> ${r.ql_xn ? `<span class="badge b-approved">✓ ${esc(defVal(r.ql_xn_by, 'Đã xác nhận'))}</span>` : '<span class="badge b-draft">Chưa xác nhận</span>'}</div>
-    ${S.me.kind === 'staff' ? `<button class="btn sm ${r.ql_xn ? '' : 'ok'}" data-act="rollok" data-id="${r.id}" data-v="${r.ql_xn ? 0 : 1}">${r.ql_xn ? 'Bỏ xác nhận' : '✓ Xác nhận'}</button>` : ''}
-    ${!S.ro && p.rolls.length > 1 ? `<button class="btn sm bad edit-only" data-act="delroll" data-i="${R}">Xóa cuộn</button>` : ''}</div></div>`;
-  }
-  return h + '</div>';
+  return `<div class="roll" data-roll-id="${r.id}">
+    <button type="button" class="rh" data-act="togroll" data-id="${r.id}">
+      <b>Cuộn ${R + 1}${r.ma_kh ? ' · KH: ' + esc(r.ma_kh) : ''}${r.cuon_so_may_so ? ' · ' + esc(r.cuon_so_may_so) : ''}</b>
+      <span class="roll-cnt ${toInt(r.so_cai) ? '' : 'mut'}">${toInt(r.so_cai) ? fmtN(toInt(r.so_cai)) + ' cái' : 'chưa nhập'}</span>
+      <span class="roll-arr">${open ? '▲' : '▼'}</span>
+    </button>
+    <div class="rb ${open ? '' : 'hide'}">
+      <div class="grid g2" style="margin-top:6px">${FI(b + 'so_cai', 'Số cái cắt được', { req: 1, cls: 'big' })}</div>
+      <fieldset><legend>Thông tin đầu cuộn Dệt / Tráng / Lộn / In flexo</legend><div class="grid">${F(b + 'ma_kh', 'Mã KH (Cột F)')}${F(b + 'cuon_so_may_so', 'Cuộn số và Máy số')}${F(b + 'ca_ngay_sx', 'Ca và ngày sản xuất')}${FN(b + 'kg_dau_cuon', 'Số kg / mét đầu cuộn')}</div></fieldset>
+      <fieldset><legend>Thông tin cuộn PE (Có thể để trống nếu không lồng PE)</legend><div class="grid">${F(b + 'ma_pe', 'Mã PE')}${F(b + 'cuon_pe', 'Cuộn số / Máy thổi số')}${F(b + 'ca_ngay_thoi', 'Ca, ngày thổi')}</div></fieldset>
+      <fieldset><legend>Sản phẩm cắt thực tế</legend><div class="grid">${FN(b + 'kho_bao', 'Khổ bao (cm)')}${FN(b + 'dai_cat', 'Chiều dài cắt sau may (cm)')}${FN(b + 'dl10', 'ĐL 10 cái đầu cuộn (g)')}</div></fieldset>
+      <fieldset><legend>Phế liệu & râu</legend><div class="grid">${FN(b + 'phe_co_dau', 'Phế liệu CÓ đánh dấu (kg)')}${FI(b + 'phe_khong_dau', 'Phế liệu KHÔNG đánh dấu (cái)')}${FI(b + 'rau_bo', 'Râu bỏ')}${FI(b + 'rau_dem', 'Râu đếm')}</div></fieldset>
+      <div class="row" style="margin-top:12px"><div class="sp"><b>Quản lý xác nhận cắt hàng loạt:</b> ${r.ql_xn ? `<span class="badge b-approved">✓ ${esc(defVal(r.ql_xn_by, 'Đã xác nhận'))}</span>` : '<span class="badge b-draft">Chưa xác nhận</span>'}</div>
+      ${S.me.kind === 'staff' ? `<button class="btn sm ${r.ql_xn ? '' : 'ok'}" data-act="rollok" data-id="${r.id}" data-v="${r.ql_xn ? 0 : 1}">${r.ql_xn ? 'Bỏ xác nhận' : '✓ Xác nhận'}</button>` : ''}
+      ${!S.ro && p.rolls.length > 1 ? `<button class="btn sm bad edit-only" data-act="delroll" data-i="${R}">Xóa cuộn</button>` : ''}</div>
+    </div>
+  </div>`;
 }
 
 function step3(P) {
@@ -1696,17 +1779,23 @@ function step4(P) {
    <div class="chips">${[0, 1, 2, 3, 4].map(i => TOG(b + 'dq.b.' + i, 'B' + (i + 1))).join('')}<button type="button" class="chip" data-act="dqhelp">? 5 bước là gì</button></div>
    <div class="chips" style="margin-top:8px">${TOG(b + 'dq.qlc', 'QLC xác nhận')}${TOG(b + 'dq.qc', 'QC xác nhận')}</div></fieldset>
   <div class="note info small" style="margin-top:12px"><b>Khi cắt hàng gạo:</b> phải chạy nháp, kiểm tra bao không dính bẩn, dính dầu nhớt… trước khi cắt hàng loạt và trong quá trình cắt.</div>
-  <h3 style="margin-top:14px">Kiểm tra trong ca</h3><p class="small mut">Mỗi lần kiểm tra tạo 1 lần (tối đa 10 lần). Nhấn <b>＋ Thêm lần kiểm tra</b> khi cần kiểm tra tiếp.</p>
-  <div class="lantabs">${q.lans.map((l, i) => `<button class="chip ${i === S.lan ? 'on' : ''}" data-act="lan" data-i="${i}">Lần ${i + 1}${lanDone(l) ? ' ✓' : ''}</button>`).join('')}${S.ro || q.lans.length >= 10 ? '' : '<button class="chip add" data-act="addlan">＋ Thêm lần kiểm tra</button>'}</div>
-  <div class="qhead"><div></div><div class="qcells">${q.lans.map((l, i) => `<div>Lần ${i + 1}${lanDone(l) ? ' ✓' : ''}</div>`).join('')}</div></div>`;
-  h += `<div class="qg"><h4>Thời gian kiểm tra</h4><div class="qrow"><div class="ql">Giờ kiểm tra</div><div class="qcells">${q.lans.map((l, i) => `<div class="qcell ${i === S.lan ? 'cur' : ''}"><span class="lanlbl">Lần ${i + 1}</span>
+  <h3 style="margin-top:14px">Kiểm tra trong ca</h3><p class="small mut">Mỗi lần kiểm tra tạo 1 cột (tối đa 10 lần). Thanh chọn Lần kiểm tra được ghim cố định khi bạn cuộn trang.</p>
+  <div class="lanbar">
+    <div class="lantabs">
+      ${q.lans.map((l, i) => `<button type="button" class="chip ${i === S.lan && !S.qcAllCols ? 'on' : ''}" data-act="lan" data-i="${i}">Lần ${i + 1}${lanDone(l) ? ' ✓' : ''}</button>`).join('')}
+      ${S.ro || q.lans.length >= 10 ? '' : '<button type="button" class="chip add" data-act="addlan">＋ Thêm lần</button>'}
+      ${q.lans.length > 1 ? `<button type="button" class="chip ${S.qcAllCols ? 'on' : ''}" data-act="togqcall">👁 ${S.qcAllCols ? 'Xem từng lần' : 'Xem tất cả (' + q.lans.length + ' lần)'}</button>` : ''}
+    </div>
+  </div>
+  <div class="qhead"><div>Hạng mục kiểm tra</div><div class="qcells">${q.lans.map((l, i) => `<div>Lần ${i + 1}${lanDone(l) ? ' ✓' : ''}</div>`).join('')}</div></div>`;
+  h += `<div class="qg"><h4>Thời gian kiểm tra</h4><div class="qrow"><div class="ql">Giờ kiểm tra</div><div class="qcells">${q.lans.map((l, i) => `<div class="qcell ${i === S.lan ? 'cur' : ''}" data-lan-idx="${i}"><span class="lanlbl">Lần ${i + 1}</span>
     <div class="tin"><input type="time" data-p="${b}lans.${i}.v.tg" value="${esc(defVal(l.v.tg, ''))}"><button type="button" class="nowb edit-only" data-act="now" data-p="${b}lans.${i}.v.tg">Bây giờ</button></div>
     <div class="qact edit-only"><button type="button" class="btn sm ok" data-act="allok" data-i="${i}">✓ Đạt hết</button>${q.lans.length > 1 ? `<button type="button" class="btn sm" data-act="dellan" data-i="${i}">Xóa lần</button>` : ''}</div></div>`).join('')}</div></div></div>`;
   QC.forEach(g => {
     h += `<div class="qg"><h4>${g.t}</h4>`;
     g.items.forEach(it => {
       const yc = it.yc ? `<span class="yc">Y/C: <b data-yc="${it.yc}">${esc(defVal(q.yc[it.yc], '—'))}</b></span>` : (it.yc2 ? `<span class="yc">Y/C: <b data-yc="lo">${esc(defVal(q.yc.so_lo, '—') + ' lỗ / Ø ' + defVal(q.yc.dk_lo, '—'))}</b></span>` : '');
-      h += `<div class="qrow"><div class="ql">${it.l}${it.na ? ' <span class="mut small">(nếu có)</span>' : ''}${yc}</div><div class="qcells">${q.lans.map((l, i) => `<div class="qcell ${i === S.lan ? 'cur' : ''}"><span class="lanlbl">Lần ${i + 1}</span>${qcCell(P, i, it)}</div>`).join('')}</div></div>`;
+      h += `<div class="qrow"><div class="ql">${it.l}${it.na ? ' <span class="mut small">(nếu có)</span>' : ''}${yc}</div><div class="qcells">${q.lans.map((l, i) => `<div class="qcell ${i === S.lan ? 'cur' : ''}" data-lan-idx="${i}"><span class="lanlbl">Lần ${i + 1}</span>${qcCell(P, i, it)}</div>`).join('')}</div></div>`;
     });
     h += '</div>';
   });
@@ -1723,13 +1812,12 @@ function dqHelp() {
  <div class="row end"><button class="btn pri" data-close>Đóng</button></div>`);
 }
 
-// Hộp thoại chọn đơn từ Kế hoạch sản xuất ngay trong phiếu
 async function pickPlanItemModal() {
   const r = S.rep;
-  let items = (r.data && Array.isArray(r.data.plan_items) && r.data.plan_items.length)
-    ? r.data.plan_items
-    : getLocalPlanItems(r.report_date, r.shift, r.machine);
-
+  let items = getLocalPlanItems(r.report_date, r.shift, r.machine);
+  if (!items.length && r.data && Array.isArray(r.data.plan_items)) {
+    items = r.data.plan_items;
+  }
   if (!items.length) {
     try {
       const res = await api('GET', `/api/plans?date=${encodeURIComponent(r.report_date)}&shift=${encodeURIComponent(r.shift)}&machine=${encodeURIComponent(r.machine)}`);
@@ -1766,7 +1854,8 @@ async function pickPlanItemModal() {
       cur.ma_sp = defVal(it.ma_sp, '');
       if (cur.rolls && cur.rolls[0]) {
         cur.rolls[0].ma_kh = defVal(it.ma_kh, '');
-        if (it.ma_pe) cur.rolls[0].ma_pe = it.ma_pe;
+        if (it.ma_pe) cur.rolls[0].ma_pe = String(it.ma_pe);
+        if (it.dai_cat) cur.rolls[0].dai_cat = String(it.dai_cat);
       }
       if (it.dinh_luong) cur.qc.yc.dinhluong = String(it.dinh_luong);
       cur.plan_meta = {
@@ -1821,6 +1910,13 @@ document.addEventListener('input', e => {
     const P = +m[1], field = m[2];
     if (/^rolls\.\d+\.so_cai$/.test(field)) {
       recalcTotal(P);
+      const rollBox = t.closest('.roll');
+      const cntEl = rollBox?.querySelector('.roll-cnt');
+      if (cntEl) {
+        const n = toInt(v);
+        cntEl.textContent = n ? fmtN(n) + ' cái' : 'chưa nhập';
+        cntEl.classList.toggle('mut', !n);
+      }
     } else if (field === 'tong_cai') {
       const g = $('#grand');
       if (g) g.textContent = fmtN(prods().reduce((a, x) => a + toInt(x.tong_cai), 0));
@@ -1839,7 +1935,11 @@ document.addEventListener('input', e => {
       const q = prods()[P].qc.yc;
       $$('[data-yc="lo"]').forEach(el => el.textContent = defVal(q.so_lo, '—') + ' lỗ / Ø ' + defVal(q.dk_lo, '—'));
     }
-    refreshStepTabs();
+    if (/^qc\.lans\.\d+\.v\.tg$/.test(field)) {
+      refreshLanLabels();
+    } else {
+      refreshStepTabs();
+    }
   }
   if (t.dataset.re) return;
   markDirty();
@@ -1861,14 +1961,7 @@ document.addEventListener('change', async e => {
   if (t.dataset && t.dataset.re && S.rep && S.view === 'edit') {
     setPath(S.rep, t.dataset.p, t.value);
     markDirty();
-    renderEditor();
-  }
-  if (t.dataset && t.dataset.p && /\.so_cai$/.test(t.dataset.p) && S.view === 'edit') {
-    const rh = t.closest('.roll')?.querySelector('.rh span:nth-of-type(1)');
-    if (rh) {
-      const n = toInt(t.value);
-      rh.textContent = n ? fmtN(n) + ' cái' : 'chưa nhập';
-    }
+    await syncPlanAfterHeaderChange();
   }
 });
 
@@ -1947,7 +2040,11 @@ const ACT = {
   addroll: () => {
     const p = prods()[S.pid];
     const r = newRoll();
-    if (p.rolls.length && p.rolls[0].ma_kh) r.ma_kh = p.rolls[0].ma_kh;
+    if (p.rolls.length) {
+      if (p.rolls[0].ma_kh) r.ma_kh = p.rolls[0].ma_kh;
+      if (p.rolls[0].ma_pe) r.ma_pe = p.rolls[0].ma_pe;
+      if (p.rolls[0].dai_cat) r.dai_cat = p.rolls[0].dai_cat;
+    }
     p.rolls.push(r);
     S.rollOpen[r.id] = true;
     markDirty();
@@ -1963,16 +2060,28 @@ const ACT = {
   },
   togroll: b => {
     const id = b.dataset.id, p = prods()[S.pid], last = p.rolls[p.rolls.length - 1].id;
-    S.rollOpen[id] = !(S.rollOpen[id] ?? (id === last));
-    keepScroll(() => renderStepBody());
+    const isOpen = !(S.rollOpen[id] ?? (id === last));
+    S.rollOpen[id] = isOpen;
+    // Cập nhật trực tiếp trên DOM, không vẽ lại cả trang giúp mượt 0ms trên điện thoại
+    const card = b.closest('.roll');
+    if (card) {
+      const rb = card.querySelector('.rb');
+      const arr = card.querySelector('.roll-arr');
+      if (rb) rb.classList.toggle('hide', !isOpen);
+      if (arr) arr.textContent = isOpen ? '▲' : '▼';
+    }
   },
-  seg: b => {
+  seg: async b => {
     const p = b.dataset.p;
     let v = b.dataset.v;
     const cur = getPath(S.rep, p);
     if (b.dataset.tog && cur === v) v = '';
     setPath(S.rep, p, v);
-    if (b.dataset.re) { markDirty(); renderEditor(); return; }
+    if (b.dataset.re) {
+      markDirty();
+      await syncPlanAfterHeaderChange();
+      return;
+    }
     $$(`[data-act="seg"][data-p="${p}"]`).forEach(x => x.classList.toggle('on', x.dataset.v === v && v !== ''));
     markDirty();
     if (S.step === 4) refreshLanLabels();
@@ -1990,17 +2099,34 @@ const ACT = {
     const v = nowHM();
     setPath(S.rep, p, v);
     const el = b.parentElement.querySelector('input');
-    el.value = v;
+    if (el) el.value = v;
     markDirty();
     refreshStepTabs();
     if (S.step === 4) refreshLanLabels();
   },
   lan: b => {
     S.lan = +b.dataset.i;
+    if (S.qcAllCols) {
+      S.qcAllCols = false;
+      $('#pbody')?.classList.remove('qc-all-cols');
+      const togBtn = $('.lanbar [data-act="togqcall"]');
+      if (togBtn) {
+        togBtn.classList.remove('on');
+        togBtn.textContent = `👁 Xem tất cả (${prods()[S.pid].qc.lans.length} lần)`;
+      }
+    }
     $$('.lantabs .chip[data-act="lan"]').forEach((c, i) => c.classList.toggle('on', i === S.lan));
     $$('#pbody .qrow').forEach(row => {
       $$('.qcell', row).forEach((cell, i) => cell.classList.toggle('cur', i === S.lan));
     });
+  },
+  togqcall: b => {
+    S.qcAllCols = !S.qcAllCols;
+    $('#pbody')?.classList.toggle('qc-all-cols', S.qcAllCols);
+    b.classList.toggle('on', S.qcAllCols);
+    const n = prods()[S.pid].qc.lans.length;
+    b.textContent = S.qcAllCols ? '👁 Xem từng lần' : `👁 Xem tất cả (${n} lần)`;
+    $$('.lantabs .chip[data-act="lan"]').forEach((c, i) => c.classList.toggle('on', !S.qcAllCols && i === S.lan));
   },
   addlan: () => {
     const q = prods()[S.pid].qc;
@@ -2018,11 +2144,22 @@ const ACT = {
     keepScroll(() => renderStepBody());
   },
   allok: b => {
-    const l = prods()[S.pid].qc.lans[+b.dataset.i];
+    const lIdx = +b.dataset.i;
+    const l = prods()[S.pid].qc.lans[lIdx];
     if (!l.v.tg) l.v.tg = nowHM();
     OK_ITEMS.forEach(i => { if (!l.v[i.k]) l.v[i.k] = 'ok'; });
+    // Cập nhật trực tiếp trên DOM mà không cần vẽ lại toàn bộ cây HTML
+    const tgInput = $(`input[data-p="data.products.${S.pid}.qc.lans.${lIdx}.v.tg"]`);
+    if (tgInput) tgInput.value = l.v.tg;
+    OK_ITEMS.forEach(i => {
+      const path = `data.products.${S.pid}.qc.lans.${lIdx}.v.${i.k}`;
+      const curVal = l.v[i.k];
+      $$(`[data-act="seg"][data-p="${path}"]`).forEach(btn => {
+        btn.classList.toggle('on', btn.dataset.v === curVal);
+      });
+    });
     markDirty();
-    keepScroll(() => renderStepBody());
+    refreshLanLabels();
     toast('Đã chọn Đạt hết & điền giờ kiểm tra ✓', 'ok');
   },
   dqhelp: () => dqHelp(),
@@ -2171,7 +2308,7 @@ window.addEventListener('beforeunload', e => {
 });
 
 // ============================================================================
-// GIAO DIỆN QUẢN LÝ & ADMIN (CÓ TAB UPLOAD KẾ HOẠCH SẢN XUẤT)
+// GIAO DIỆN QUẢN LÝ & ADMIN (HIỂN THỊ ĐẦY ĐỦ TRÊN CẢ ĐIỆN THOẠI & MÁY TÍNH)
 // ============================================================================
 function defFilters() {
   const now = new Date();
@@ -2194,8 +2331,8 @@ function staffShell(inner, tab) {
 function renderStaffReportTable(reports, t) {
   const el = $('#lst');
   if (!el) return;
-  el.innerHTML = reports.length ? `<table class="rt"><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Người nhập (C01)</th><th class="num">Số cái</th><th>SP</th><th>Trạng thái</th></tr></thead><tbody>${
-    reports.map(x => `<tr class="clk" data-act="open" data-id="${x.id}"><td data-l="Ngày">${fd(x.report_date)}</td><td data-l="Ca">${esc(x.shift)}</td><td data-l="Máy"><b>${esc(x.machine)}</b></td><td data-l="Người nhập">${esc(x.worker_name)}</td><td class="num" data-l="Số cái">${fmtN(x.total)}</td><td data-l="Số SP">${x.n_products}</td><td data-l="Trạng thái">${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
+  el.innerHTML = reports.length ? `<table class="rt"><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Người nhập (C01)</th><th class="num">Số cái</th><th>Số SP</th><th>Trạng thái</th></tr></thead><tbody>${
+    reports.map(x => `<tr class="clk" data-act="open" data-id="${x.id}"><td data-l="Ngày">${fd(x.report_date)}</td><td data-l="Ca">${esc(x.shift)}</td><td data-l="Máy"><b>${esc(x.machine)}</b></td><td data-l="Người nhập">${esc(x.worker_name)}</td><td class="num" data-l="Số cái"><b>${fmtN(x.total)}</b></td><td data-l="Số SP">${x.n_products} SP</td><td data-l="Trạng thái">${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
     : `<div class="note info">${t === 'pending' ? 'Không có phiếu nào chờ duyệt 🎉' : 'Không có phiếu nào theo bộ lọc.'}</div>`;
 }
 
@@ -2272,12 +2409,12 @@ function renderPlanPreviewBox() {
     <label class="f"><span>Ca làm việc áp dụng (Ô C1)</span><select id="pl_shift">${shiftOpts}</select></label>
   </div>
   <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:600;cursor:pointer">
-    <input type="checkbox" id="pl_sync_mach" checked style="width:20px;height:20px">
+    <input type="checkbox" id="pl_sync_mach" checked style="width:20px;height:20px;flex-shrink:0">
     <span>Cập nhật luôn danh sách ${p.machines.length} máy (Mã máy cũ Cột A) vào hệ thống cho công nhân chọn</span>
   </label>
-  <div style="margin-top:12px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fafbfc">
-    <table class="rt"><thead><tr><th>Máy (Cột A)</th><th>Đơn hàng (Cột C)</th><th>Mã KH (Cột F)</th><th>Mã SP cũ (Cột G)</th><th class="num">SL Kế hoạch</th></tr></thead><tbody>
-    ${activeMachs.flatMap(([m, arr]) => arr.map(it => `<tr><td data-l="Máy"><b>${esc(m)}</b></td><td data-l="Đơn hàng">${esc(it.ma_dh)}</td><td data-l="Mã KH">${esc(it.ma_kh)}</td><td data-l="Mã SP"><b>${esc(it.ma_sp)}</b></td><td class="num" data-l="SL KH">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) : '—'}</td></tr>`)).join('')}
+  <div class="tscroll" style="margin-top:12px;max-height:280px;overflow-y:auto">
+    <table class="rt keep-tbl"><thead><tr><th>Máy (Cột A)</th><th>Đơn hàng (Cột C)</th><th>Mã KH (Cột F)</th><th>Mã SP cũ (Cột G)</th><th class="num">SL Kế hoạch</th></tr></thead><tbody>
+    ${activeMachs.flatMap(([m, arr]) => arr.map(it => `<tr><td><b>${esc(m)}</b></td><td>${esc(it.ma_dh)}</td><td>${esc(it.ma_kh)}</td><td><b>${esc(it.ma_sp)}</b></td><td class="num">${it.sl_ke_hoach ? fmtN(it.sl_ke_hoach) : '—'}</td></tr>`)).join('')}
     </tbody></table>
   </div>
   <button class="btn pri lg" style="margin-top:12px;width:100%" data-act="saveplan">💾 Lưu & Áp dụng Kế hoạch này</button>`;
@@ -2290,19 +2427,19 @@ function renderSavedPlansList(plans) {
     el.innerHTML = `<div class="note info">Chưa có kế hoạch sản xuất nào được tải lên.</div>`;
     return;
   }
-  el.innerHTML = `<table class="rt"><thead><tr><th>Ngày SX</th><th>Ca</th><th class="num">Số máy có lệnh</th><th class="num">Tổng số đơn</th><th>Người tải lên</th><th>Cập nhật lúc</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<table class="rt"><thead><tr><th>Ngày SX</th><th>Ca</th><th class="num">Số máy có lệnh</th><th class="num">Tổng số đơn</th><th>Người tải lên</th><th>Cập nhật lúc</th><th>Thao tác</th></tr></thead><tbody>
     ${plans.map(pl => {
       const key = `${pl.plan_date}_${pl.shift}`;
       return `<tr>
         <td data-l="Ngày SX"><b>${fd(pl.plan_date)}</b></td>
         <td data-l="Ca"><span class="badge b-approved">${esc(pl.shift)}</span></td>
-        <td class="num" data-l="Số máy">${pl.n_machines || 0} máy</td>
+        <td class="num" data-l="Số máy có lệnh">${pl.n_machines || 0} máy</td>
         <td class="num" data-l="Tổng số đơn"><b>${pl.n_orders || 0} đơn</b></td>
-        <td data-l="Người tải">${esc(defVal(pl.updated_by, ''))}</td>
-        <td data-l="Cập nhật">${esc(toVNDisplay(pl.updated_at).full)}</td>
-        <td>
-          <button class="btn sm" data-act="viewplan" data-key="${esc(key)}">Xem</button>
-          <button class="btn sm bad" data-act="delplan" data-date="${esc(pl.plan_date)}" data-shift="${esc(pl.shift)}">Xóa</button>
+        <td data-l="Người tải lên">${esc(defVal(pl.updated_by, ''))}</td>
+        <td data-l="Cập nhật lúc">${esc(toVNDisplay(pl.updated_at).full)}</td>
+        <td class="act-cell">
+          <button class="btn sm" data-act="viewplan" data-key="${esc(key)}">👁 Xem chi tiết</button>
+          <button class="btn sm bad" data-act="delplan" data-date="${esc(pl.plan_date)}" data-shift="${esc(pl.shift)}">🗑 Xóa</button>
         </td>
       </tr>`;
     }).join('')}
@@ -2315,8 +2452,8 @@ async function plansView(force = false) {
     <p class="small mut">Chọn file <b>KE HOACH SAN XUAT.xlsx</b>. Hệ thống sẽ tự động lấy <b>Mã máy cũ (Cột A)</b>, <b>Đơn hàng (Cột C)</b>, <b>Mã KH (Cột F)</b> và <b>Mã SP cũ (Cột G)</b> để tạo sẵn sườn cho công nhân khi vào đúng Ca & Ngày đó.</p>
     <label class="upbox" style="margin-top:10px">
       <input type="file" id="plan_file_in" accept=".xlsx" class="hide">
-      <div style="font-size:18px;font-weight:700;color:var(--pri)">📂 Bấm vào đây để chọn file KE HOACH SAN XUAT.xlsx</div>
-      <div class="small mut" style="margin-top:4px">Đọc trực tiếp ngay trên trình duyệt – tự nhận diện Ca (C1) và Ngày (D1)</div>
+      <div style="font-size:17px;font-weight:700;color:var(--pri)">📂 Bấm vào đây để chọn file KE HOACH SAN XUAT.xlsx</div>
+      <div class="small mut" style="margin-top:4px">Đọc trực tiếp ngay trên điện thoại / máy tính – tự nhận diện Ca (C1) và Ngày (D1)</div>
     </label>
     <div id="plan_parsed_box"></div>
   </div>
@@ -2419,7 +2556,7 @@ function renderUsersList(users) {
   window._users = users;
   el.innerHTML = `<div class="card"><div class="row"><h3 class="sp">Tài khoản quản lý</h3><button class="btn pri" data-act="useradd">＋ Thêm tài khoản</button></div>
   <p class="small mut">Công nhân <b>không cần tài khoản</b> – mỗi điện thoại tự đăng ký tên lần đầu.</p></div>
-  <table class="rt"><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead><tbody>${users.map(u => `<tr><td data-l="Tên đăng nhập"><b>${esc(u.username)}</b></td><td data-l="Họ tên">${esc(u.full_name)}</td><td data-l="Vai trò">${u.role === 'admin' ? 'Admin tổng' : 'Quản lý ca'}</td><td data-l="Trạng thái">${u.active ? '<span class="badge b-approved">Hoạt động</span>' : '<span class="badge b-draft">Đã khóa</span>'}</td><td><button class="btn sm" data-act="useredit" data-id="${u.id}">Sửa</button></td></tr>`).join('')}</tbody></table>`;
+  <table class="rt"><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${users.map(u => `<tr><td data-l="Tên đăng nhập"><b>${esc(u.username)}</b></td><td data-l="Họ tên">${esc(u.full_name)}</td><td data-l="Vai trò">${u.role === 'admin' ? 'Admin tổng' : 'Quản lý ca'}</td><td data-l="Trạng thái">${u.active ? '<span class="badge b-approved">Hoạt động</span>' : '<span class="badge b-draft">Đã khóa</span>'}</td><td class="act-cell"><button class="btn sm" data-act="useredit" data-id="${u.id}">✎ Sửa</button></td></tr>`).join('')}</tbody></table>`;
 }
 
 async function usersView(force = false) {
@@ -2478,10 +2615,10 @@ function pwModal() {
 function renderDevicesList(devices) {
   const el = $('#lst');
   if (!el) return;
-  const rows = (devices || []).map(d => `<tr><td data-l="Tên"><b>${esc(d.name)}</b></td><td data-l="Máy">${esc(defVal(d.last_machine, ''))}</td><td class="num" data-l="Số phiếu">${defVal(d.n_reports, 0)}</td><td data-l="Gần nhất">${esc(toVNDisplay(d.last_seen).full)}</td>
-  <td><button class="btn sm" data-act="devrename" data-id="${d.id}">Đổi tên</button> ${d.n_reports ? '' : `<button class="btn sm bad" data-act="devdel" data-id="${d.id}">Xóa</button>`}</td></tr>`).join('');
+  const rows = (devices || []).map(d => `<tr><td data-l="Tên công nhân"><b>${esc(d.name)}</b></td><td data-l="Máy hay làm">${esc(defVal(d.last_machine, '—'))}</td><td class="num" data-l="Số phiếu">${defVal(d.n_reports, 0)}</td><td data-l="Dùng gần nhất">${esc(toVNDisplay(d.last_seen).full)}</td>
+  <td class="act-cell"><button class="btn sm" data-act="devrename" data-id="${d.id}">✎ Đổi tên</button> ${d.n_reports ? '' : `<button class="btn sm bad" data-act="devdel" data-id="${d.id}">🗑 Xóa</button>`}</td></tr>`).join('');
   el.innerHTML = `<div class="card"><h3>Thiết bị công nhân</h3><p class="small mut">Mỗi điện thoại/trình duyệt là 1 thiết bị.</p></div>
-  <table class="rt"><thead><tr><th>Tên</th><th>Máy hay làm</th><th class="num">Số phiếu</th><th>Dùng gần nhất</th><th></th></tr></thead><tbody>${defVal(rows, '<tr><td colspan="5">Chưa có thiết bị nào.</td></tr>')}</tbody></table>`;
+  <table class="rt"><thead><tr><th>Tên</th><th>Máy hay làm</th><th class="num">Số phiếu</th><th>Dùng gần nhất</th><th>Thao tác</th></tr></thead><tbody>${defVal(rows, '<tr><td colspan="5" class="empty-cell mut">Chưa có thiết bị nào.</td></tr>')}</tbody></table>`;
 }
 
 async function devicesView(force = false) {
